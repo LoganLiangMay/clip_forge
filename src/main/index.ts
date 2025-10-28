@@ -5,6 +5,7 @@ import { setupFFmpegHandlers } from './ffmpeg/handlers';
 import { setupIpcHandlers } from './ipc/handlers';
 import { createReadStream } from 'fs';
 import { stat } from 'fs/promises';
+import * as fs from 'fs';
 
 // Fix for macOS state restoration crash
 // This must be done before the app is ready
@@ -77,15 +78,53 @@ app.whenReady().then(() => {
   protocol.handle('file', async (request) => {
     // Get the file path from the URL
     const url = new URL(request.url);
-    const filePath = decodeURIComponent(url.pathname);
+    let filePath = decodeURIComponent(url.pathname);
+
+    // On Windows, remove the leading slash for absolute paths
+    if (process.platform === 'win32' && filePath.startsWith('/')) {
+      filePath = filePath.slice(1);
+    }
 
     console.log('[Main] File protocol request:', request.url);
     console.log('[Main] Decoded path:', filePath);
 
     // Only handle video files with our custom handler
     if (!filePath.match(/\.(mp4|webm|ogg|mov|avi|mkv)$/i)) {
-      // For non-video files, use the default file handler
-      return net.fetch(request.url);
+      // For non-video files, read and return the file directly
+      try {
+        const fileContent = await fs.promises.readFile(filePath);
+        const ext = path.extname(filePath).toLowerCase();
+
+        // Determine MIME type for common file types
+        const mimeTypes: { [key: string]: string } = {
+          '.html': 'text/html',
+          '.css': 'text/css',
+          '.js': 'text/javascript',
+          '.json': 'application/json',
+          '.png': 'image/png',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.gif': 'image/gif',
+          '.svg': 'image/svg+xml',
+          '.ico': 'image/x-icon',
+          '.woff': 'font/woff',
+          '.woff2': 'font/woff2',
+          '.ttf': 'font/ttf',
+          '.eot': 'application/vnd.ms-fontobject'
+        };
+
+        const contentType = mimeTypes[ext] || 'application/octet-stream';
+
+        return new Response(fileContent, {
+          headers: {
+            'Content-Type': contentType,
+            'Content-Length': String(fileContent.length)
+          }
+        });
+      } catch (error) {
+        console.error('[Main] Error reading file:', error);
+        return new Response('File not found', { status: 404 });
+      }
     }
 
     try {
