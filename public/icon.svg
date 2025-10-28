@@ -1,0 +1,46 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="512" height="512" rx="64" fill="#1a1a2e"/>
+
+  <!-- Film strip frame -->
+  <rect x="48" y="128" width="416" height="256" rx="8" fill="#0f3460"/>
+
+  <!-- Film perforations top -->
+  <g fill="#16213e">
+    <rect x="72" y="148" width="32" height="24" rx="4"/>
+    <rect x="128" y="148" width="32" height="24" rx="4"/>
+    <rect x="184" y="148" width="32" height="24" rx="4"/>
+    <rect x="240" y="148" width="32" height="24" rx="4"/>
+    <rect x="296" y="148" width="32" height="24" rx="4"/>
+    <rect x="352" y="148" width="32" height="24" rx="4"/>
+    <rect x="408" y="148" width="32" height="24" rx="4"/>
+  </g>
+
+  <!-- Film perforations bottom -->
+  <g fill="#16213e">
+    <rect x="72" y="340" width="32" height="24" rx="4"/>
+    <rect x="128" y="340" width="32" height="24" rx="4"/>
+    <rect x="184" y="340" width="32" height="24" rx="4"/>
+    <rect x="240" y="340" width="32" height="24" rx="4"/>
+    <rect x="296" y="340" width="32" height="24" rx="4"/>
+    <rect x="352" y="340" width="32" height="24" rx="4"/>
+    <rect x="408" y="340" width="32" height="24" rx="4"/>
+  </g>
+
+  <!-- Center play/edit icon -->
+  <g transform="translate(256, 256)">
+    <!-- Scissors icon (simplified) -->
+    <g stroke="#e94560" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <!-- Left blade -->
+      <path d="M -40 -20 L 0 20 L -20 40 M -40 -20 A 20 20 0 0 0 -40 20"/>
+      <!-- Right blade -->
+      <path d="M 40 -20 L 0 20 L 20 40 M 40 -20 A 20 20 0 0 1 40 20"/>
+      <!-- Center bolt -->
+      <circle cx="0" cy="20" r="6" fill="#e94560"/>
+    </g>
+  </g>
+
+  <!-- Accent lines -->
+  <rect x="48" y="188" width="416" height="2" fill="#e94560" opacity="0.6"/>
+  <rect x="48" y="322" width="416" height="2" fill="#e94560" opacity="0.6"/>
+</svg>

@@ -1,0 +1,129 @@
+import { contextBridge, ipcRenderer } from 'electron';
+
+// Expose protected methods that allow the renderer process to use
+// the ipcRenderer without exposing the entire object
+contextBridge.exposeInMainWorld('electronAPI', {
+  // Platform detection
+  platform: process.platform,
+
+  // Dialog API
+  openFile: () => ipcRenderer.invoke('dialog:open-file'),
+  openFiles: () => ipcRenderer.invoke('dialog:open-files'),
+  saveFile: (defaultName?: string) => ipcRenderer.invoke('dialog:save-file', defaultName),
+
+  // Project API
+  saveProject: (filePath: string, data: any) =>
+    ipcRenderer.invoke('project:save', { filePath, data }),
+  loadProject: (filePath: string) =>
+    ipcRenderer.invoke('project:load', filePath),
+
+  // FFmpeg API
+  getMetadata: (filePath: string) =>
+    ipcRenderer.invoke('ffmpeg:get-metadata', filePath),
+  generateThumbnail: (params: any) =>
+    ipcRenderer.invoke('ffmpeg:generate-thumbnail', params),
+  extractWaveform: (filePath: string) =>
+    ipcRenderer.invoke('ffmpeg:extract-waveform', filePath),
+  trimVideo: (params: any) =>
+    ipcRenderer.invoke('ffmpeg:trim-video', params),
+  exportVideo: (params: any) =>
+    ipcRenderer.invoke('ffmpeg:export-video', params),
+  concatVideos: (params: any) =>
+    ipcRenderer.invoke('ffmpeg:concat-videos', params),
+
+  // Desktop Capturer API
+  getDesktopSources: () =>
+    ipcRenderer.invoke('desktop:get-sources'),
+
+  // File System API
+  readFile: (filePath: string) =>
+    ipcRenderer.invoke('fs:read-file', filePath),
+  writeFile: (filePath: string, data: any) =>
+    ipcRenderer.invoke('fs:write-file', { filePath, data }),
+  ensureDir: (dirPath: string) =>
+    ipcRenderer.invoke('fs:ensure-dir', dirPath),
+
+  // Menu Events
+  onMenuAction: (callback: (action: string) => void) => {
+    const events = [
+      'menu-new-project',
+      'menu-open-project',
+      'menu-save-project',
+      'menu-save-project-as',
+      'menu-import-media',
+      'menu-export-video',
+      'menu-undo',
+      'menu-redo',
+      'menu-cut',
+      'menu-copy',
+      'menu-paste',
+      'menu-delete',
+      'menu-split-clip',
+      'menu-select-all',
+      'menu-zoom-in',
+      'menu-zoom-out',
+      'menu-fit-timeline',
+    ];
+
+    // Create listener function
+    const listeners = new Map<string, () => void>();
+
+    events.forEach(event => {
+      const listener = () => callback(event);
+      listeners.set(event, listener);
+      ipcRenderer.on(event, listener);
+    });
+
+    // Return cleanup function
+    return () => {
+      listeners.forEach((listener, event) => {
+        ipcRenderer.removeListener(event, listener);
+      });
+    };
+  },
+
+  // Auto-save
+  startAutoSave: () => ipcRenderer.send('start-auto-save'),
+  stopAutoSave: () => ipcRenderer.send('stop-auto-save'),
+  onAutoSave: (callback: () => void) => {
+    ipcRenderer.on('trigger-auto-save', callback);
+  },
+
+  // Progress Events
+  onFFmpegProgress: (callback: (progress: any) => void) => {
+    ipcRenderer.on('ffmpeg:progress', (event, progress) => callback(progress));
+  },
+  onExportProgress: (callback: (progress: any) => void) => {
+    ipcRenderer.on('ffmpeg:export-progress', (event, progress) => callback(progress));
+  },
+});
+
+// Add type declarations
+declare global {
+  interface Window {
+    electronAPI: {
+      platform: string;
+      openFile: () => Promise<any>;
+      openFiles: () => Promise<any>;
+      saveFile: (defaultName?: string) => Promise<any>;
+      saveProject: (filePath: string, data: any) => Promise<any>;
+      loadProject: (filePath: string) => Promise<any>;
+      getMetadata: (filePath: string) => Promise<any>;
+      generateThumbnail: (params: any) => Promise<any>;
+      extractWaveform: (filePath: string) => Promise<any>;
+      trimVideo: (params: any) => Promise<any>;
+      exportVideo: (params: any) => Promise<any>;
+      concatVideos: (params: any) => Promise<any>;
+      getDesktopSources: () => Promise<any>;
+      readFile: (filePath: string) => Promise<any>;
+      writeFile: (filePath: string, data: any) => Promise<any>;
+      ensureDir: (dirPath: string) => Promise<any>;
+      onMenuAction: (callback: (action: string) => void) => (() => void);
+      startAutoSave: () => void;
+      stopAutoSave: () => void;
+      onAutoSave: (callback: () => void) => void;
+      onFFmpegProgress: (callback: (progress: any) => void) => void;
+      onExportProgress: (callback: (progress: any) => void) => void;
+    };
+  }
+}

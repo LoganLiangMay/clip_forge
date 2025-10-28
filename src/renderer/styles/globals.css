@@ -1,0 +1,130 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow: hidden;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-secondary;
+    border-radius: 5px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground;
+    border-radius: 5px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-foreground;
+  }
+}
+
+/* Panel resizing */
+.panel-resizer {
+  @apply bg-border hover:bg-primary/50 transition-colors cursor-col-resize;
+  width: 2px;
+}
+
+.panel-resizer-horizontal {
+  @apply bg-border hover:bg-primary/50 transition-colors cursor-row-resize;
+  height: 2px;
+}
+
+/* Timeline styles */
+.timeline-track {
+  @apply bg-secondary/50 border border-border rounded-sm;
+  min-height: 60px;
+}
+
+.timeline-clip {
+  @apply bg-primary/80 border border-primary rounded-sm cursor-grab;
+  position: absolute;
+  height: calc(100% - 8px);
+  top: 4px;
+  z-index: 10;
+  transition: box-shadow 0.2s ease;
+}
+
+.timeline-clip:hover {
+  @apply bg-primary/90 border-primary-foreground;
+}
+
+.timeline-clip.selected {
+  @apply bg-primary border-2 border-blue-500;
+  z-index: 15;
+}
+
+.timeline-clip.dragging {
+  @apply cursor-grabbing;
+  z-index: 20;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.timeline-clip.trimming {
+  z-index: 20;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Waveform canvas */
+.waveform-canvas {
+  @apply bg-secondary/30;
+  width: 100%;
+  height: 100%;
+}
+
+/* Electron window drag regions */
+.app-drag {
+  -webkit-app-region: drag;
+}
+
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Ensure user select is disabled in drag regions */
+.app-drag * {
+  user-select: none;
+  -webkit-user-select: none;
+}
