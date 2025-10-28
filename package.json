@@ -14,6 +14,7 @@
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:win": "npm run build && electron-builder --win",
     "dist:linux": "npm run build && electron-builder --linux",
+    "package:mac": "npm run build && electron-packager . ClipForge --platform=darwin --arch=x64 --out=release --overwrite --ignore='^/src|^/public|^/.git|^/node_modules/@ffmpeg-installer/(?!darwin-x64)|^/node_modules/@ffprobe-installer/(?!darwin-x64)'",
     "preview": "vite preview",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -38,6 +39,7 @@
     "electron": "^38.4.0",
     "electron-builder": "^26.0.12",
     "electron-is-dev": "^3.0.1",
+    "electron-packager": "^17.1.2",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.18",
     "typescript": "^5.9.3",
@@ -76,19 +78,14 @@
     ],
     "mac": {
       "category": "public.app-category.video",
-      "icon": "build/icon.png",
-      "hardenedRuntime": true,
-      "gatekeeperAssess": false,
-      "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist"
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
     },
     "win": {
-      "target": "nsis",
-      "icon": "build/icon.png"
+      "target": "nsis"
     },
     "linux": {
-      "target": "AppImage",
-      "icon": "build/icon.png"
+      "target": "AppImage"
     },
     "dmg": {
       "contents": [

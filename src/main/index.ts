@@ -6,6 +6,12 @@ import { setupIpcHandlers } from './ipc/handlers';
 import { createReadStream } from 'fs';
 import { stat } from 'fs/promises';
 
+// Disable state restoration to prevent crash on macOS
+app.disableHardwareAcceleration();
+if (process.platform === 'darwin') {
+  app.commandLine.appendSwitch('disable-features', 'RestoredState');
+}
+
 let mainWindow: BrowserWindow | null = null;
 
 // No need to register custom protocols since we're intercepting file://
