@@ -1,5 +1,7 @@
 # ClipForge - Desktop Video Editor
 
+Cross-platform desktop video editor built with Electron & React. Record screens/webcams, edit on multi-track timeline, control audio with waveform visualization, and export in multiple formats. Perfect for content creators, educators, and professionals.
+
 A powerful desktop video editor built with Electron, React, TypeScript, and FFmpeg.
 
 ## Features (MVP)
@@ -59,6 +61,10 @@ clip_forge/
 ### Installation
 
 ```bash
+# Clone the repository
+git clone https://github.com/LoganLiangMay/clip_forge.git
+cd clip_forge
+
 # Install dependencies
 npm install
 ```
