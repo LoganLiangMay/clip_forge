@@ -6,10 +6,19 @@ import { setupIpcHandlers } from './ipc/handlers';
 import { createReadStream } from 'fs';
 import { stat } from 'fs/promises';
 
-// Disable state restoration to prevent crash on macOS
-app.disableHardwareAcceleration();
+// Fix for macOS state restoration crash
+// This must be done before the app is ready
 if (process.platform === 'darwin') {
   app.commandLine.appendSwitch('disable-features', 'RestoredState');
+  app.commandLine.appendSwitch('disable-features', 'ApplicationCache');
+  // Disable GPU to avoid hardware acceleration issues
+  app.commandLine.appendSwitch('disable-gpu');
+  app.commandLine.appendSwitch('disable-software-rasterizer');
+}
+
+// Set the app user model ID for Windows
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.clipforge.app');
 }
 
 let mainWindow: BrowserWindow | null = null;
@@ -28,6 +37,7 @@ const createWindow = () => {
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: false,  // Allows loading local files
+      sandbox: false, // Disable sandbox to avoid permission issues
     },
     backgroundColor: '#0a0a0a',
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
@@ -35,6 +45,14 @@ const createWindow = () => {
     icon: process.platform === 'win32'
       ? path.join(__dirname, '../../public/icon.ico')
       : path.join(__dirname, '../../public/icon.png'),
+    show: false, // Don't show window immediately
+  });
+
+  // Show window after it's ready to prevent state restoration issues
+  mainWindow.once('ready-to-show', () => {
+    if (mainWindow) {
+      mainWindow.show();
+    }
   });
 
   // Set application menu

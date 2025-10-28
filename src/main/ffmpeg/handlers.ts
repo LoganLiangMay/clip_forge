@@ -1,13 +1,94 @@
-import { ipcMain } from 'electron';
+import { app, ipcMain } from 'electron';
 import ffmpeg from 'fluent-ffmpeg';
-import ffmpegPath from '@ffmpeg-installer/ffmpeg';
-import ffprobePath from '@ffprobe-installer/ffprobe';
 import path from 'path';
 import fs from 'fs';
 
+// Function to get FFmpeg paths that work in both development and production
+function getFFmpegPaths() {
+  const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+
+  if (isDev) {
+    try {
+      // In development, use the npm packages
+      const ffmpegPath = require('@ffmpeg-installer/ffmpeg');
+      const ffprobePath = require('@ffprobe-installer/ffprobe');
+      return {
+        ffmpeg: ffmpegPath.path,
+        ffprobe: ffprobePath.path
+      };
+    } catch (error) {
+      console.warn('Could not load ffmpeg-installer in dev mode:', error);
+    }
+  }
+
+  // In production, try to find ffmpeg in the app's resources or use system ffmpeg
+  const platform = process.platform;
+  const arch = process.arch;
+
+  // The app path in a packaged Electron app
+  const appPath = app.getAppPath();
+
+  // Possible locations for ffmpeg and ffprobe binaries
+  const ffmpegPossiblePaths = [
+    // In packaged app (no asar)
+    path.join(appPath, 'node_modules', '@ffmpeg-installer', `${platform}-${arch}`, 'ffmpeg'),
+    path.join(appPath, 'node_modules', '@ffmpeg-installer', 'darwin-x64', 'ffmpeg'),
+    // System paths (fallback)
+    '/usr/local/bin/ffmpeg',
+    '/usr/bin/ffmpeg'
+  ];
+
+  const ffprobePossiblePaths = [
+    // In packaged app (no asar)
+    path.join(appPath, 'node_modules', '@ffprobe-installer', `${platform}-${arch}`, 'ffprobe'),
+    path.join(appPath, 'node_modules', '@ffprobe-installer', 'darwin-x64', 'ffprobe'),
+    // System paths (fallback)
+    '/usr/local/bin/ffprobe',
+    '/usr/bin/ffprobe'
+  ];
+
+  let ffmpegPath = 'ffmpeg';
+  let ffprobePath = 'ffprobe';
+
+  // Find ffmpeg
+  for (const possiblePath of ffmpegPossiblePaths) {
+    if (fs.existsSync(possiblePath)) {
+      ffmpegPath = possiblePath;
+      console.log('Found ffmpeg at:', ffmpegPath);
+      // Make sure it's executable
+      try {
+        fs.chmodSync(ffmpegPath, 0o755);
+      } catch (e) {
+        console.warn('Could not set executable permission for ffmpeg:', e);
+      }
+      break;
+    }
+  }
+
+  // Find ffprobe
+  for (const possiblePath of ffprobePossiblePaths) {
+    if (fs.existsSync(possiblePath)) {
+      ffprobePath = possiblePath;
+      console.log('Found ffprobe at:', ffprobePath);
+      // Make sure it's executable
+      try {
+        fs.chmodSync(ffprobePath, 0o755);
+      } catch (e) {
+        console.warn('Could not set executable permission for ffprobe:', e);
+      }
+      break;
+    }
+  }
+
+  return { ffmpeg: ffmpegPath, ffprobe: ffprobePath };
+}
+
 // Set FFmpeg and FFprobe paths
-ffmpeg.setFfmpegPath(ffmpegPath.path);
-ffmpeg.setFfprobePath(ffprobePath.path);
+const ffmpegPaths = getFFmpegPaths();
+ffmpeg.setFfmpegPath(ffmpegPaths.ffmpeg);
+ffmpeg.setFfprobePath(ffmpegPaths.ffprobe);
+
+console.log('[FFmpeg] Using paths:', ffmpegPaths);
 
 export function setupFFmpegHandlers() {
   // Get video metadata
