@@ -61,13 +61,18 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ isOpen, onClose }) =
             startTime: clip.startTime
           });
 
+          // IMPORTANT: Export needs the TRIMMED duration, not the timeline duration
+          // The timeline duration (clip.duration) may be the original video duration
+          // But we need to send the actual trimmed content duration
+          const actualTrimmedDuration = trimmedDuration;
+
           return {
             id: clip.id,
             filePath: media?.path || '',
             startTime: clip.startTime,
-            duration: clip.duration,
+            duration: actualTrimmedDuration,  // Use trimmed duration, not clip.duration!
             inPoint: clip.inPoint || 0,
-            outPoint: clip.outPoint,  // Include outPoint for proper trimming
+            outPoint: clip.outPoint,
             volume: clip.volume || 1,
             trackType: track.type,
             muted: track.muted,

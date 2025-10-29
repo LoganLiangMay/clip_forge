@@ -122,7 +122,8 @@ export const Preview: React.FC = () => {
       <div className="flex-1 relative bg-black flex items-center justify-center">
         <video
           ref={videoRef}
-          className="max-w-full max-h-full"
+          className="object-contain"
+          style={{ maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto' }}
         >
           {/* Video source will be set dynamically by useVideoComposition hook */}
         </video>
