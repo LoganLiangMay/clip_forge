@@ -6,26 +6,26 @@ Cross-platform desktop video editor built with Electron & React. Record screens/
 
 ```mermaid
 graph TB
-    subgraph UI["🎨 Frontend Layer"]
-        React["React 19 + TypeScript"]
-        Tailwind["Tailwind CSS"]
-        Zustand["Zustand State"]
+    subgraph Frontend[Frontend Layer]
+        React[React 19 + TypeScript]
+        Tailwind[Tailwind CSS]
+        Zustand[Zustand State]
     end
 
-    subgraph Desktop["⚡ Desktop Framework"]
-        Electron["Electron 25.x"]
-        IPC["IPC Bridge"]
+    subgraph Desktop[Desktop Framework]
+        Electron[Electron 25.x]
+        IPC[IPC Bridge]
     end
 
-    subgraph Processing["🎬 Video Processing"]
-        FFmpeg["FFmpeg Engine"]
-        FFprobe["FFprobe Metadata"]
-        Recorder["Screen/Webcam Capture"]
+    subgraph Processing[Video Processing]
+        FFmpeg[FFmpeg Engine]
+        FFprobe[FFprobe Metadata]
+        Recorder[Screen/Webcam Capture]
     end
 
-    subgraph Storage["💾 Data Layer"]
-        FileSystem["Local File System"]
-        Projects["Project Files (.clipforge)"]
+    subgraph Storage[Data Layer]
+        FileSystem[Local File System]
+        Projects[Project Files]
     end
 
     React --> Zustand
@@ -40,10 +40,10 @@ graph TB
     Zustand --> Projects
     Projects --> FileSystem
 
-    style UI fill:#8b5cf6,stroke:#7c3aed,stroke-width:2px,color:#fff
-    style Desktop fill:#fb923c,stroke:#f97316,stroke-width:2px,color:#fff
-    style Processing fill:#ef4444,stroke:#dc2626,stroke-width:2px,color:#fff
-    style Storage fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff
+    style Frontend fill:#8b5cf6,stroke:#7c3aed,stroke-width:2px
+    style Desktop fill:#fb923c,stroke:#f97316,stroke-width:2px
+    style Processing fill:#ef4444,stroke:#dc2626,stroke-width:2px
+    style Storage fill:#10b981,stroke:#059669,stroke-width:2px
 ```
 
 ## Features
