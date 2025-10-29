@@ -39,6 +39,80 @@ clip_forge/
 └── dist/                  # Build output
 ```
 
+## Architecture
+
+  ```mermaid
+  graph TB
+      subgraph UI["🎨 Frontend Layer"]
+          React["React 19 + TypeScript"]
+          Tailwind["Tailwind CSS"]
+          Zustand["Zustand State"]
+      end
+
+      subgraph Desktop["⚡ Desktop Framework"]
+          Electron["Electron 25.x"]
+          IPC["IPC Bridge"]
+      end
+
+      subgraph Processing["🎬 Video Processing"]
+          FFmpeg["FFmpeg Engine"]
+          FFprobe["FFprobe Metadata"]
+          Recorder["Screen/Webcam Capture"]
+      end
+
+      subgraph Storage["💾 Data Layer"]
+          FileSystem["Local File System"]
+          Projects["Project Files (.clipforge)"]
+      end
+
+      React --> Zustand
+      React --> Tailwind
+      Zustand --> IPC
+      IPC --> Electron
+      Electron --> FFmpeg
+      Electron --> FFprobe
+      Electron --> Recorder
+      FFmpeg --> FileSystem
+      Recorder --> FileSystem
+      Zustand --> Projects
+      Projects --> FileSystem
+
+      style UI fill:#8b5cf6,stroke:#7c3aed,stroke-width:2px,color:#fff
+      style Desktop
+  fill:#fb923c,stroke:#f97316,stroke-width:2px,color:#fff
+      style Processing
+  fill:#ef4444,stroke:#dc2626,stroke-width:2px,color:#fff
+      style Storage
+  fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff
+
+  Tech Stack
+
+  | Layer    | Technology       | Purpose                      |
+  |----------|------------------|------------------------------|
+  | Language | TypeScript       | Type-safe development        |
+  | Desktop  | Electron 25.x    | Cross-platform runtime       |
+  | Frontend | React 19 + Vite  | UI framework & build tool    |
+  | Styling  | Tailwind CSS     | Utility-first styling        |
+  | State    | Zustand          | Lightweight state management |
+  | Video    | FFmpeg + FFprobe | Video processing & metadata  |
+  | Icons    | Lucide React     | UI icons                     |
+  | Build    | Electron Builder | App packaging                |
+
+  Core Features
+
+  - ✅ Multi-track timeline editing
+  - ✅ Real-time video preview
+  - ✅ Drag-and-drop interface
+  - ✅ Video trimming & splitting
+  - ✅ Multi-clip concatenation
+  - ✅ Audio/video synchronization
+  - ✅ Screen & webcam recording
+  - ✅ Custom export presets (1080p, 720p, 4K)
+  - ✅ Auto-save functionality
+  - ✅ Cross-platform (macOS, Windows, Linux)
+
+
+
 ## Tech Stack
 
 - **Electron**: Cross-platform desktop framework
