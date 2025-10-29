@@ -16,6 +16,7 @@ export const useMediaRecorder = () => {
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const recordingDurationRef = useRef<number>(0); // Store final duration
 
   const startRecording = useCallback(async (options: RecordingOptions) => {
     try {
@@ -83,53 +84,90 @@ export const useMediaRecorder = () => {
       };
 
       mediaRecorder.onstop = async () => {
-        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
+        try {
+          const blob = new Blob(chunksRef.current, { type: 'video/webm' });
 
-        // Save to a temporary file
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const fileName = `recording_${timestamp}.webm`;
+          // Get the actual recording duration in seconds
+          const durationInSeconds = recordingDurationRef.current / 1000;
 
-        // Convert blob to buffer and save
-        const arrayBuffer = await blob.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+          console.log('Recording stopped. Duration:', durationInSeconds, 'seconds');
 
-        // Create a temporary path
-        const tempPath = `/tmp/${fileName}`;
+          // Ask user where to save the recording
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const fileName = `recording_${timestamp}.webm`;
+          const result = await window.electronAPI.saveFile(fileName);
 
-        // Save the file
-        await window.electronAPI.writeFile(tempPath, buffer);
+          if (result.canceled) {
+            console.log('Recording save canceled by user');
+            // Clean up streams but don't add to library
+            if (streamRef.current) {
+              streamRef.current.getTracks().forEach(track => track.stop());
+              streamRef.current = null;
+            }
+            setIsRecording(false);
+            setIsPaused(false);
+            setRecordingTime(0);
+            recordingDurationRef.current = 0;
+            if (timerRef.current) {
+              clearInterval(timerRef.current);
+              timerRef.current = null;
+            }
+            return;
+          }
 
-        // Add to media library
-        const metadata = {
-          format: {
-            duration: recordingTime / 1000,
-            format_name: 'webm',
-          },
-        };
+          const savePath = result.filePath;
 
-        useProjectStore.getState().addMediaFile({
-          id: Date.now().toString(),
-          path: tempPath,
-          name: fileName,
-          type: 'video',
-          duration: recordingTime / 1000,
-          metadata,
-        });
+          // Convert blob to Uint8Array (browser-compatible, no Buffer needed)
+          const arrayBuffer = await blob.arrayBuffer();
+          const uint8Array = new Uint8Array(arrayBuffer);
 
-        // Clean up
-        if (streamRef.current) {
-          streamRef.current.getTracks().forEach(track => track.stop());
-          streamRef.current = null;
-        }
+          // Save the file via IPC
+          const writeResult = await window.electronAPI.writeFile(savePath, uint8Array);
 
-        setIsRecording(false);
-        setIsPaused(false);
-        setRecordingTime(0);
+          if (!writeResult.success) {
+            throw new Error(`Failed to save recording: ${writeResult.error}`);
+          }
 
-        if (timerRef.current) {
-          clearInterval(timerRef.current);
-          timerRef.current = null;
+          // Get metadata from the actual video file to ensure accuracy
+          const metadata = await window.electronAPI.getMetadata(savePath);
+          const actualDuration = metadata?.format?.duration || durationInSeconds;
+
+          console.log('Recording metadata:', {
+            timerDuration: durationInSeconds,
+            actualDuration: actualDuration
+          });
+
+          // Add to media library with actual duration from metadata
+          useProjectStore.getState().addMediaFile({
+            id: Date.now().toString(),
+            path: savePath,
+            name: fileName,
+            type: 'video',
+            duration: actualDuration,
+            metadata,
+          });
+
+          console.log('Recording saved successfully:', savePath, 'Duration:', actualDuration);
+
+        } catch (error) {
+          console.error('Failed to save recording:', error);
+          alert(`Failed to save recording: ${(error as Error).message}`);
+        } finally {
+          // Clean up streams
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
+          }
+
+          setIsRecording(false);
+          setIsPaused(false);
+          setRecordingTime(0);
+          recordingDurationRef.current = 0;
+
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
         }
       };
 
@@ -151,9 +189,11 @@ export const useMediaRecorder = () => {
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
+      // Capture the current recording time before stopping
+      recordingDurationRef.current = recordingTime;
       mediaRecorderRef.current.stop();
     }
-  }, [isRecording]);
+  }, [isRecording, recordingTime]);
 
   const pauseRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording && !isPaused) {

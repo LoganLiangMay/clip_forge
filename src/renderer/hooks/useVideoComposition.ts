@@ -155,12 +155,12 @@ export const useVideoComposition = (videoElement: HTMLVideoElement | null) => {
 
           const offsetInClip = currentTime - clip.startTime;
           // Ensure we don't seek beyond the clip's duration
-          const clampedOffset = Math.min(offsetInClip, clip.duration - 0.01);
+          const clampedOffset = Math.max(0, Math.min(offsetInClip, clip.duration - 0.01));
           const videoTime = clip.inPoint + clampedOffset;
 
           // Also ensure we don't seek beyond the clip's out-point
           const clipOutPoint = clip.inPoint + clip.duration;
-          const clampedVideoTime = Math.min(videoTime, clipOutPoint);
+          const clampedVideoTime = Math.max(0, Math.min(videoTime, clipOutPoint));
 
           console.log('Video metadata loaded. Setting position:', {
             currentTime,
@@ -314,6 +314,15 @@ export const useVideoComposition = (videoElement: HTMLVideoElement | null) => {
 
         // Check if we've reached the out-point of the trimmed clip
         const clipOutPoint = currentClip.inPoint + currentClip.duration;
+
+        // Validate clip has valid duration before checking if it ended
+        if (currentClip.duration <= 0) {
+          console.error('Clip has invalid duration (0 or negative):', currentClip);
+          videoElement.pause();
+          isPlayingRef.current = false;
+          return;
+        }
+
         if (videoTime >= clipOutPoint - 0.1) { // Small buffer to prevent repeated triggers
           // Prevent this from triggering multiple times
           if (isTransitioningRef.current) {

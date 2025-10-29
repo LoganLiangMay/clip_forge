@@ -229,15 +229,21 @@ export const useProjectStore = create<ProjectState>((set) => ({
         }
       }
 
+      // Validate media duration before creating clip
+      const validDuration = isFinite(media.duration) && media.duration > 0 ? media.duration : 10; // Default to 10s if invalid
+      if (!isFinite(media.duration) || media.duration <= 0) {
+        console.warn(`Media ${media.name} has invalid duration (${media.duration}), using default of 10s`);
+      }
+
       // Create the new clip
       const newClip: TimelineClip = {
         id: Date.now().toString(),
         mediaId,
         trackId: targetTrackId,
         startTime: finalStartTime,
-        duration: media.duration,
+        duration: validDuration,
         inPoint: 0,
-        outPoint: media.duration,
+        outPoint: validDuration,
         volume: 1,
         effects: [],
       };
@@ -407,9 +413,15 @@ export const useProjectStore = create<ProjectState>((set) => ({
           const newDuration = newEndTime - clip.startTime;
           const newOutPoint = clip.inPoint + newDuration;
 
+          // Validate that outPoint is greater than inPoint (minimum 0.1s clip)
+          if (newOutPoint <= clip.inPoint + 0.1) {
+            console.warn(`Cannot trim clip to less than 0.1s duration`);
+            return clip; // Invalid trim
+          }
+
           // Find the media to check against original duration
           const media = state.mediaFiles.find(m => m.id === clip.mediaId);
-          const maxDuration = media ? media.duration - clip.inPoint : newDuration;
+          const maxDuration = media && isFinite(media.duration) ? media.duration - clip.inPoint : newDuration;
 
           if (newDuration <= 0 || newDuration > maxDuration) return clip; // Invalid trim
 

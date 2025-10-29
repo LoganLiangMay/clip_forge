@@ -90,7 +90,10 @@ export function setupIpcHandlers() {
 
   ipcMain.handle('fs:write-file', async (event, { filePath, data }) => {
     try {
-      await fs.writeFile(filePath, data);
+      // Convert Uint8Array to Buffer if needed (Node.js fs.writeFile accepts both)
+      // Electron IPC automatically serializes Uint8Array properly
+      const buffer = data instanceof Uint8Array ? Buffer.from(data) : data;
+      await fs.writeFile(filePath, buffer);
       return { success: true };
     } catch (error) {
       return { success: false, error: (error as Error).message };
