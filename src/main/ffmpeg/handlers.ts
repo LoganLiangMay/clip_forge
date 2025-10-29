@@ -246,7 +246,19 @@ export function setupFFmpegHandlers() {
             tempFiles.push(tempOutput);
 
             const trimStart = clip.inPoint || 0;
-            const trimDuration = clip.duration;
+            // IMPORTANT: Use the actual trimmed duration from the source video, not the timeline duration
+            // The outPoint represents where the trim ends in the source video
+            // If outPoint is not set, it means use until the end of the source video
+            const sourceVideoDuration = tempOutput.includes('placeholder') ? clip.duration : Number.MAX_SAFE_INTEGER;
+            const trimEnd = clip.outPoint !== undefined ? clip.outPoint : (trimStart + clip.duration);
+            const trimDuration = trimEnd - trimStart;
+
+            console.log(`[Export] Clip ${index} trim settings:`, {
+              inPoint: trimStart,
+              outPoint: trimEnd,
+              sourceTrimDuration: trimDuration,
+              timelineDuration: clip.duration
+            });
 
             // Build filter for this single clip
             let clipFilter = `[0:v]trim=start=${trimStart}:duration=${trimDuration},setpts=PTS-STARTPTS,scale=${resolution},fps=${fps}[v];`;
@@ -254,6 +266,7 @@ export function setupFFmpegHandlers() {
             if (!clip.muted) {
               clipFilter += `[0:a]atrim=start=${trimStart}:duration=${trimDuration},asetpts=PTS-STARTPTS,volume=${clip.volume || 1}[a]`;
             } else {
+              // For muted clips, create silence for the actual trimmed duration
               clipFilter += `anullsrc=channel_layout=stereo:sample_rate=44100:duration=${trimDuration}[a]`;
             }
 
@@ -373,7 +386,16 @@ export function setupFFmpegHandlers() {
           command.input(clip.filePath);
 
           const trimStart = clip.inPoint || 0;
-          const trimDuration = clip.duration;
+          // Fix: Use actual source trim duration, not timeline duration
+          const trimEnd = clip.outPoint !== undefined ? clip.outPoint : (trimStart + clip.duration);
+          const trimDuration = trimEnd - trimStart;
+
+          console.log(`[Export] Overlay clip ${i} trim:`, {
+            inPoint: trimStart,
+            outPoint: trimEnd,
+            sourceTrimDuration: trimDuration,
+            timelineDuration: clip.duration
+          });
 
           filterComplex += `[${inputIndex}:v]trim=start=${trimStart}:duration=${trimDuration},setpts=PTS-STARTPTS,scale=${resolution},fps=${fps}[v${i}];`;
 
