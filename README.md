@@ -2,18 +2,62 @@
 
 Cross-platform desktop video editor built with Electron & React. Record screens/webcams, edit on multi-track timeline, control audio with waveform visualization, and export in multiple formats. Perfect for content creators, educators, and professionals.
 
-A powerful desktop video editor built with Electron, React, TypeScript, and FFmpeg.
+## Architecture
 
-## Features (MVP)
+```mermaid
+graph TB
+    subgraph UI["🎨 Frontend Layer"]
+        React["React 19 + TypeScript"]
+        Tailwind["Tailwind CSS"]
+        Zustand["Zustand State"]
+    end
 
-- **Media Import**: Support for all major video formats (MP4, MOV, AVI, WebM, MKV, FLV)
-- **Multi-track Timeline**: 3 video tracks and 3 audio tracks
-- **Screen & Webcam Recording**: Built-in recording capabilities
-- **Timeline Editing**: Drag-and-drop clips, trim, split, and arrange
-- **Audio Editing**: Volume control, fade in/out, waveform visualization
-- **Properties Panel**: Adjust clip properties including transform, audio, and effects
-- **Auto-save**: Automatic project saving every 2 minutes
-- **Dark Theme**: Professional dark UI optimized for video editing
+    subgraph Desktop["⚡ Desktop Framework"]
+        Electron["Electron 25.x"]
+        IPC["IPC Bridge"]
+    end
+
+    subgraph Processing["🎬 Video Processing"]
+        FFmpeg["FFmpeg Engine"]
+        FFprobe["FFprobe Metadata"]
+        Recorder["Screen/Webcam Capture"]
+    end
+
+    subgraph Storage["💾 Data Layer"]
+        FileSystem["Local File System"]
+        Projects["Project Files (.clipforge)"]
+    end
+
+    React --> Zustand
+    React --> Tailwind
+    Zustand --> IPC
+    IPC --> Electron
+    Electron --> FFmpeg
+    Electron --> FFprobe
+    Electron --> Recorder
+    FFmpeg --> FileSystem
+    Recorder --> FileSystem
+    Zustand --> Projects
+    Projects --> FileSystem
+
+    style UI fill:#8b5cf6,stroke:#7c3aed,stroke-width:2px,color:#fff
+    style Desktop fill:#fb923c,stroke:#f97316,stroke-width:2px,color:#fff
+    style Processing fill:#ef4444,stroke:#dc2626,stroke-width:2px,color:#fff
+    style Storage fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff
+```
+
+## Features
+
+- ✅ **Media Import**: Support for all major video formats (MP4, MOV, AVI, WebM, MKV, FLV)
+- ✅ **Multi-track Timeline**: 3 video tracks and 3 audio tracks with drag-and-drop
+- ✅ **Screen & Webcam Recording**: Built-in recording capabilities
+- ✅ **Timeline Editing**: Trim, split, and arrange clips with real-time preview
+- ✅ **Multi-clip Export**: Concatenate multiple clips seamlessly
+- ✅ **Audio/Video Sync**: Proper synchronization and mixing
+- ✅ **Volume Control**: Per-clip volume adjustment
+- ✅ **Custom Export Presets**: 1080p, 720p, 4K, and platform-specific formats
+- ✅ **Auto-save**: Automatic project saving every 2 minutes
+- ✅ **Dark Theme**: Professional dark UI optimized for video editing
 
 ## Project Structure
 
@@ -115,14 +159,16 @@ clip_forge/
 
 ## Tech Stack
 
-- **Electron**: Cross-platform desktop framework
-- **React 18**: UI components and rendering
-- **TypeScript**: Type safety and better DX
-- **Vite**: Fast build tooling
-- **FFmpeg**: Video/audio processing
-- **Zustand**: State management
-- **Tailwind CSS**: Styling
-- **Lucide React**: Icons
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Language** | TypeScript | Type-safe development |
+| **Desktop** | Electron 25.x | Cross-platform runtime |
+| **Frontend** | React 19 + Vite | UI framework & build tool |
+| **Styling** | Tailwind CSS | Utility-first styling |
+| **State** | Zustand | Lightweight state management |
+| **Video** | FFmpeg + FFprobe | Video processing & metadata |
+| **Icons** | Lucide React | UI icon library |
+| **Build** | Electron Builder | App packaging & distribution |
 
 ## Development
 
