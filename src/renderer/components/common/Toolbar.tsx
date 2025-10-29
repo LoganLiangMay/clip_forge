@@ -7,14 +7,16 @@ import { useProjectStore } from '../../store/projectStore';
 import { useUIStore } from '../../store/uiStore';
 import { useHistoryStore } from '../../store/historyStore';
 import { RecordingDialog } from './RecordingDialog';
-import { ExportDialog } from './ExportDialog';
 
-export const Toolbar: React.FC = () => {
+interface ToolbarProps {
+  onExport?: () => void;
+}
+
+export const Toolbar: React.FC<ToolbarProps> = ({ onExport }) => {
   const { isDirty } = useProjectStore();
   const { isPlaying, togglePlayback } = useUIStore();
   const { canUndo, canRedo, undo, redo } = useHistoryStore();
   const [showRecordingDialog, setShowRecordingDialog] = useState(false);
-  const [showExportDialog, setShowExportDialog] = useState(false);
 
   const handleSave = async () => {
     const state = useProjectStore.getState();
@@ -75,10 +77,6 @@ export const Toolbar: React.FC = () => {
         isOpen={showRecordingDialog}
         onClose={() => setShowRecordingDialog(false)}
       />
-      <ExportDialog
-        isOpen={showExportDialog}
-        onClose={() => setShowExportDialog(false)}
-      />
       <div className="h-12 bg-background border-b border-border flex items-center px-4 gap-2">
       {/* File Operations */}
       <div className="flex items-center gap-1 pr-2 border-r border-border">
@@ -100,7 +98,7 @@ export const Toolbar: React.FC = () => {
           )}
         </button>
         <button
-          onClick={() => setShowExportDialog(true)}
+          onClick={onExport}
           className="p-2 hover:bg-background rounded transition-colors"
           title="Export Video (Cmd+E)"
         >

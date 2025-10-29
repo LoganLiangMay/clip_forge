@@ -246,10 +246,9 @@ export function setupFFmpegHandlers() {
             tempFiles.push(tempOutput);
 
             const trimStart = clip.inPoint || 0;
-            // IMPORTANT: Use the actual trimmed duration from the source video, not the timeline duration
-            // The outPoint represents where the trim ends in the source video
-            // If outPoint is not set, it means use until the end of the source video
-            const sourceVideoDuration = tempOutput.includes('placeholder') ? clip.duration : Number.MAX_SAFE_INTEGER;
+            // IMPORTANT: Calculate the proper trim end point
+            // If outPoint is defined, use it directly
+            // If outPoint is undefined, calculate it as inPoint + duration (timeline duration)
             const trimEnd = clip.outPoint !== undefined ? clip.outPoint : (trimStart + clip.duration);
             const trimDuration = trimEnd - trimStart;
 

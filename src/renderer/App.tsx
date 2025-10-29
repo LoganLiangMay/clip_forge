@@ -144,7 +144,7 @@ function App() {
       <TitleBar />
 
       {/* Toolbar - Not draggable */}
-      <Toolbar />
+      <Toolbar onExport={handleExportVideo} />
 
       {/* Main Content Area */}
       <div className="flex flex-1 overflow-hidden">

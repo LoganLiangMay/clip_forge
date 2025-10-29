@@ -53,6 +53,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ isOpen, onClose }) =
             startTime: clip.startTime,
             duration: clip.duration,
             inPoint: clip.inPoint || 0,
+            outPoint: clip.outPoint,  // Include outPoint for proper trimming
             volume: clip.volume || 1,
             trackType: track.type,
             muted: track.muted,
