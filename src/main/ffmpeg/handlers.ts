@@ -218,13 +218,24 @@ export function setupFFmpegHandlers() {
       }
 
       // Check if clips are contiguous (no gaps between them)
+      // Must use trimmed durations for accurate check
       const sortedVideoClips = [...videoTracks].sort((a, b) => a.startTime - b.startTime);
       let isContiguous = true;
       for (let i = 1; i < sortedVideoClips.length; i++) {
-        const prevClipEnd = sortedVideoClips[i - 1].startTime + sortedVideoClips[i - 1].duration;
+        const prevClip = sortedVideoClips[i - 1];
+        const prevInPoint = prevClip.inPoint || 0;
+        const prevOutPoint = prevClip.outPoint !== undefined ? prevClip.outPoint : (prevInPoint + prevClip.duration);
+        const prevTrimmedDuration = prevOutPoint - prevInPoint;
+        const prevClipEnd = prevClip.startTime + prevTrimmedDuration;
+
         const currentClipStart = sortedVideoClips[i].startTime;
         if (Math.abs(prevClipEnd - currentClipStart) > 0.01) {
           isContiguous = false;
+          console.log('[Export] Gap detected between clips:', {
+            prevClipEnd,
+            currentClipStart,
+            gap: currentClipStart - prevClipEnd
+          });
           break;
         }
       }
@@ -252,11 +263,15 @@ export function setupFFmpegHandlers() {
             const trimEnd = clip.outPoint !== undefined ? clip.outPoint : (trimStart + clip.duration);
             const trimDuration = trimEnd - trimStart;
 
-            console.log(`[Export] Clip ${index} trim settings:`, {
+            console.log(`[Export] Clip ${index} (${clip.id}) trim settings:`, {
               inPoint: trimStart,
               outPoint: trimEnd,
+              clipOutPoint: clip.outPoint,
               sourceTrimDuration: trimDuration,
-              timelineDuration: clip.duration
+              timelineDuration: clip.duration,
+              startTime: clip.startTime,
+              endTime: clip.startTime + clip.duration,
+              actualEndTime: clip.startTime + trimDuration
             });
 
             // Build filter for this single clip
@@ -389,11 +404,15 @@ export function setupFFmpegHandlers() {
           const trimEnd = clip.outPoint !== undefined ? clip.outPoint : (trimStart + clip.duration);
           const trimDuration = trimEnd - trimStart;
 
-          console.log(`[Export] Overlay clip ${i} trim:`, {
+          console.log(`[Export] Overlay clip ${i} (${clip.id}) trim:`, {
             inPoint: trimStart,
             outPoint: trimEnd,
+            clipOutPoint: clip.outPoint,
             sourceTrimDuration: trimDuration,
-            timelineDuration: clip.duration
+            timelineDuration: clip.duration,
+            startTime: clip.startTime,
+            endTime: clip.startTime + clip.duration,
+            actualEndTime: clip.startTime + trimDuration
           });
 
           filterComplex += `[${inputIndex}:v]trim=start=${trimStart}:duration=${trimDuration},setpts=PTS-STARTPTS,scale=${resolution},fps=${fps}[v${i}];`;
@@ -403,7 +422,8 @@ export function setupFFmpegHandlers() {
             audioInputs.push(`[a${i}]`);
           }
 
-          videoInputs.push({ label: `[v${i}]`, startTime: clip.startTime, duration: clip.duration });
+          // Use the actual trimmed duration for overlay, not the timeline duration
+          videoInputs.push({ label: `[v${i}]`, startTime: clip.startTime, duration: trimDuration });
           inputIndex++;
         });
 

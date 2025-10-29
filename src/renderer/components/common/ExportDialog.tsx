@@ -47,6 +47,20 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ isOpen, onClose }) =
       const allClips = tracks.flatMap(track =>
         track.clips.map(clip => {
           const media = mediaFiles.find(f => f.id === clip.mediaId);
+
+          // Calculate the actual trimmed duration for each clip
+          const inPoint = clip.inPoint || 0;
+          const outPoint = clip.outPoint !== undefined ? clip.outPoint : (inPoint + clip.duration);
+          const trimmedDuration = outPoint - inPoint;
+
+          console.log(`[ExportDialog] Clip ${clip.id}:`, {
+            timelineDuration: clip.duration,
+            inPoint,
+            outPoint,
+            trimmedDuration,
+            startTime: clip.startTime
+          });
+
           return {
             id: clip.id,
             filePath: media?.path || '',
@@ -74,9 +88,13 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ isOpen, onClose }) =
       }
 
       // Calculate the actual content duration (end time of last clip)
+      // Must use trimmed duration, not timeline duration
       const sortedClips = [...validClips].sort((a, b) => a.startTime - b.startTime);
       const lastClip = sortedClips[sortedClips.length - 1];
-      const actualDuration = lastClip.startTime + lastClip.duration;
+      const lastClipInPoint = lastClip.inPoint || 0;
+      const lastClipOutPoint = lastClip.outPoint !== undefined ? lastClip.outPoint : (lastClipInPoint + lastClip.duration);
+      const lastClipTrimmedDuration = lastClipOutPoint - lastClipInPoint;
+      const actualDuration = lastClip.startTime + lastClipTrimmedDuration;
 
       console.log('[ExportDialog] Exporting', validClips.length, 'clips');
       console.log('[ExportDialog] Timeline duration:', duration);
