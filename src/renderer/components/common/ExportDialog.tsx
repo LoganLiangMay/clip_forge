@@ -94,11 +94,29 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ isOpen, onClose }) =
       const lastClipInPoint = lastClip.inPoint || 0;
       const lastClipOutPoint = lastClip.outPoint !== undefined ? lastClip.outPoint : (lastClipInPoint + lastClip.duration);
       const lastClipTrimmedDuration = lastClipOutPoint - lastClipInPoint;
+
+      // For timeline duration, we need to consider the actual timeline position and trimmed duration
+      // If a clip is placed at timeline position X and has trimmed duration Y, the end is X + Y
+      // NOT X + original duration
       const actualDuration = lastClip.startTime + lastClipTrimmedDuration;
 
       console.log('[ExportDialog] Exporting', validClips.length, 'clips');
-      console.log('[ExportDialog] Timeline duration:', duration);
-      console.log('[ExportDialog] Actual content duration:', actualDuration);
+      console.log('[ExportDialog] Timeline duration from store:', duration);
+      console.log('[ExportDialog] Last clip details:', {
+        startTime: lastClip.startTime,
+        duration: lastClip.duration,
+        inPoint: lastClipInPoint,
+        outPoint: lastClipOutPoint,
+        trimmedDuration: lastClipTrimmedDuration
+      });
+      console.log('[ExportDialog] Calculated actual duration:', actualDuration);
+      console.log('[ExportDialog] All clips timeline positions:', sortedClips.map(c => ({
+        id: c.id,
+        start: c.startTime,
+        duration: c.duration,
+        inPoint: c.inPoint,
+        outPoint: c.outPoint
+      })));
 
       // Listen for export progress
       window.electronAPI.onExportProgress((progress: any) => {

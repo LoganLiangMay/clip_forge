@@ -193,7 +193,17 @@ export function setupFFmpegHandlers() {
 
         console.log('[Export] Starting export with', clips.length, 'clips');
         console.log('[Export] Output:', outputPath);
-        console.log('[Export] Duration:', duration);
+        console.log('[Export] Duration passed to export:', duration);
+        console.log('[Export] All clips data:', clips.map((c: any) => ({
+          id: c.id,
+          startTime: c.startTime,
+          duration: c.duration,
+          inPoint: c.inPoint || 0,
+          outPoint: c.outPoint,
+          trimmedDuration: c.outPoint !== undefined ?
+            (c.outPoint - (c.inPoint || 0)) :
+            c.duration
+        })));
 
       const command = ffmpeg();
 
@@ -217,30 +227,42 @@ export function setupFFmpegHandlers() {
         return;
       }
 
-      // Check if clips are contiguous (no gaps between them)
-      // Must use trimmed durations for accurate check
+      // Check if clips are truly contiguous (no gaps between actual content)
+      // For trimmed clips, we need to check if actual content is contiguous
       const sortedVideoClips = [...videoTracks].sort((a, b) => a.startTime - b.startTime);
       let isContiguous = true;
-      for (let i = 1; i < sortedVideoClips.length; i++) {
-        const prevClip = sortedVideoClips[i - 1];
-        const prevInPoint = prevClip.inPoint || 0;
-        const prevOutPoint = prevClip.outPoint !== undefined ? prevClip.outPoint : (prevInPoint + prevClip.duration);
-        const prevTrimmedDuration = prevOutPoint - prevInPoint;
-        const prevClipEnd = prevClip.startTime + prevTrimmedDuration;
+      let expectedNextStart = 0;
 
-        const currentClipStart = sortedVideoClips[i].startTime;
-        if (Math.abs(prevClipEnd - currentClipStart) > 0.01) {
-          isContiguous = false;
-          console.log('[Export] Gap detected between clips:', {
-            prevClipEnd,
-            currentClipStart,
-            gap: currentClipStart - prevClipEnd
-          });
-          break;
+      for (let i = 0; i < sortedVideoClips.length; i++) {
+        const clip = sortedVideoClips[i];
+        const clipInPoint = clip.inPoint || 0;
+        const clipOutPoint = clip.outPoint !== undefined ? clip.outPoint : (clipInPoint + clip.duration);
+        const clipTrimmedDuration = clipOutPoint - clipInPoint;
+
+        if (i === 0) {
+          // First clip must start at 0 for simple concatenation
+          if (Math.abs(clip.startTime) > 0.01) {
+            isContiguous = false;
+            console.log('[Export] First clip does not start at 0:', clip.startTime);
+            break;
+          }
+          expectedNextStart = clip.startTime + clipTrimmedDuration;
+        } else {
+          // Check if this clip starts where the previous one's actual content ended
+          if (Math.abs(clip.startTime - expectedNextStart) > 0.01) {
+            isContiguous = false;
+            console.log('[Export] Gap detected between clips:', {
+              prevClipEnd: expectedNextStart,
+              currentClipStart: clip.startTime,
+              gap: clip.startTime - expectedNextStart
+            });
+            break;
+          }
+          expectedNextStart = clip.startTime + clipTrimmedDuration;
         }
       }
 
-      console.log('[Export] Clips are contiguous:', isContiguous);
+      console.log('[Export] Clips are truly contiguous:', isContiguous);
 
       if (isContiguous && sortedVideoClips[0].startTime < 0.01) {
         // Simple case: clips are contiguous and start at 0
@@ -427,14 +449,19 @@ export function setupFFmpegHandlers() {
           inputIndex++;
         });
 
-        // Create background video for the timeline duration
+        // Create background video for the actual content duration
+        // IMPORTANT: Use the passed duration which should be the actual content duration, not timeline duration
+        console.log('[Export] Creating background video with duration:', duration);
         filterComplex += `color=c=black:s=${resolution}:r=${fps}:d=${duration}[bg];`;
 
         // Overlay clips at their timeline positions
         let lastOutput = '[bg]';
         videoInputs.forEach((input, i) => {
           const outputLabel = i === videoInputs.length - 1 ? '[vout]' : `[tmp${i}]`;
-          filterComplex += `${lastOutput}${input.label}overlay=enable='between(t,${input.startTime},${input.startTime + input.duration})'${outputLabel};`;
+          // Use the actual trimmed duration for overlay timing
+          const overlayEnd = input.startTime + input.duration;
+          console.log(`[Export] Overlay timing for clip ${i}: start=${input.startTime}, end=${overlayEnd}, duration=${input.duration}`);
+          filterComplex += `${lastOutput}${input.label}overlay=enable='between(t,${input.startTime},${overlayEnd})'${outputLabel};`;
           lastOutput = outputLabel;
         });
 
