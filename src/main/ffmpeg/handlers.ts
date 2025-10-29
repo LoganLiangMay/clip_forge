@@ -461,7 +461,8 @@ export function setupFFmpegHandlers() {
           // Use the actual trimmed duration for overlay timing
           const overlayEnd = input.startTime + input.duration;
           console.log(`[Export] Overlay timing for clip ${i}: start=${input.startTime}, end=${overlayEnd}, duration=${input.duration}`);
-          filterComplex += `${lastOutput}${input.label}overlay=enable='between(t,${input.startTime},${overlayEnd})'${outputLabel};`;
+          // Fixed overlay syntax: removed quotes around between expression
+          filterComplex += `${lastOutput}${input.label}overlay=enable=between(t\\,${input.startTime}\\,${overlayEnd})${outputLabel};`;
           lastOutput = outputLabel;
         });
 
