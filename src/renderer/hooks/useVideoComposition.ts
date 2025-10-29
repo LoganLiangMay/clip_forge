@@ -232,12 +232,15 @@ export const useVideoComposition = (videoElement: HTMLVideoElement | null) => {
         videoElement.volume = track.muted ? 0 : clip.volume;
       }
     } else {
-      // No active clip - clear video
-      if (videoElement.src) {
+      // No active clip - pause video but don't clear src to avoid errors
+      if (videoElement.src && videoElement.src !== 'about:blank' && currentClip) {
         videoElement.pause();
-        videoElement.src = '';
+        // Instead of clearing src which causes errors, just pause and hide
+        // The video element will retain its last frame
         setCurrentClip(null);
         isPlayingRef.current = false;
+        // Remove the src only if absolutely necessary (never loaded any video)
+        // videoElement.removeAttribute('src'); // Don't set empty string
       }
     }
   }, [currentTime, tracks, mediaFiles, videoElement, currentClip]);
@@ -282,7 +285,14 @@ export const useVideoComposition = (videoElement: HTMLVideoElement | null) => {
     };
 
     const handleError = (e: Event) => {
-      console.error('Video error:', videoElement.error);
+      // Only log meaningful errors, skip empty src errors
+      if (videoElement.error && videoElement.error.code !== 4) {
+        console.error('Video error:', videoElement.error);
+      } else if (videoElement.error && videoElement.error.code === 4) {
+        // Code 4 is MEDIA_SRC_NOT_SUPPORTED - usually empty src
+        // This can happen during transitions, not a real error
+        console.debug('Video src cleared or not supported (expected during clip transitions)');
+      }
     };
 
     const handleTimeUpdate = () => {
