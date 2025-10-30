@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Folder, Film, Music, Image, Search, Plus, Grid, List } from 'lucide-react';
+import { Folder, Film, Music, Image, Search, Plus, Grid, List, ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
 import { useProjectStore } from '../../store/projectStore';
 import { cn } from '../../utils/cn';
 
@@ -7,9 +7,21 @@ export const MediaLibrary: React.FC = () => {
   const { mediaFiles, addClipToTimeline } = useProjectStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [showRegularMedia, setShowRegularMedia] = useState(true);
+  const [showBrollMedia, setShowBrollMedia] = useState(true);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
-  const filteredFiles = mediaFiles.filter(file =>
+  // Separate regular media from B-roll media
+  const regularMedia = mediaFiles.filter(file => !file.metadata?.isBroll);
+  const brollMedia = mediaFiles.filter(file => file.metadata?.isBroll);
+
+  // Filter both categories by search term
+  const filteredRegularMedia = regularMedia.filter(file =>
     file.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+  const filteredBrollMedia = brollMedia.filter(file =>
+    file.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    file.metadata?.topic?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getFileIcon = (type: string) => {
@@ -45,6 +57,73 @@ export const MediaLibrary: React.FC = () => {
   const handleDragStart = (e: React.DragEvent, mediaId: string) => {
     e.dataTransfer.setData('mediaId', mediaId);
   };
+
+  const renderMediaItem = (file: any) => (
+    <div
+      key={file.id}
+      draggable
+      onDragStart={(e) => handleDragStart(e, file.id)}
+      onDoubleClick={() => {
+        if (file.type === 'image') {
+          setPreviewImage(file.path);
+        }
+      }}
+      className={cn(
+        "cursor-pointer hover:bg-secondary/50 rounded transition-colors",
+        viewMode === 'grid'
+          ? 'p-2 flex flex-col items-center text-center'
+          : 'p-2 flex items-center gap-2'
+      )}
+    >
+      {viewMode === 'grid' ? (
+        <>
+          <div className="w-full aspect-video bg-secondary/50 rounded flex items-center justify-center mb-1 relative overflow-hidden">
+            {file.type === 'image' ? (
+              <img
+                src={`file://${file.path}`}
+                alt={file.name}
+                className="w-full h-full object-cover rounded"
+              />
+            ) : file.thumbnail ? (
+              <img src={file.thumbnail} alt={file.name} className="w-full h-full object-cover rounded" />
+            ) : (
+              getFileIcon(file.type)
+            )}
+            {file.metadata?.isBroll && (
+              <div className="absolute top-1 right-1 bg-purple-600 rounded-full p-1">
+                <Sparkles className="w-3 h-3 text-white" />
+              </div>
+            )}
+          </div>
+          <span className="text-xs truncate w-full">{file.name}</span>
+          {file.metadata?.topic && (
+            <span className="text-xs text-purple-400 truncate w-full">
+              {file.metadata.topic}
+            </span>
+          )}
+          <span className="text-xs text-muted-foreground">
+            {formatDuration(file.duration)}
+          </span>
+        </>
+      ) : (
+        <>
+          {getFileIcon(file.type)}
+          <div className="flex-1 min-w-0">
+            <p className="text-xs truncate">{file.name}</p>
+            {file.metadata?.topic && (
+              <p className="text-xs text-purple-400 truncate">{file.metadata.topic}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {formatDuration(file.duration)}
+            </p>
+          </div>
+          {file.metadata?.isBroll && (
+            <Sparkles className="w-3 h-3 text-purple-500" />
+          )}
+        </>
+      )}
+    </div>
+  );
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -97,59 +176,100 @@ export const MediaLibrary: React.FC = () => {
       </div>
 
       {/* Media Items */}
-      <div className="flex-1 overflow-auto p-2">
-        {filteredFiles.length === 0 ? (
+      <div className="flex-1 overflow-auto">
+        {mediaFiles.length === 0 ? (
           <div className="text-center text-muted-foreground text-sm py-8">
             <Folder className="w-12 h-12 mx-auto mb-2 opacity-50" />
             <p>No media files</p>
             <p className="text-xs mt-1">Import files to get started</p>
           </div>
         ) : (
-          <div className={cn(
-            viewMode === 'grid' ? 'grid grid-cols-2 gap-2' : 'space-y-1'
-          )}>
-            {filteredFiles.map((file) => (
-              <div
-                key={file.id}
-                draggable
-                onDragStart={(e) => handleDragStart(e, file.id)}
-                className={cn(
-                  "cursor-pointer hover:bg-secondary/50 rounded transition-colors",
-                  viewMode === 'grid'
-                    ? 'p-2 flex flex-col items-center text-center'
-                    : 'p-2 flex items-center gap-2'
-                )}
-              >
-                {viewMode === 'grid' ? (
-                  <>
-                    <div className="w-full aspect-video bg-secondary/50 rounded flex items-center justify-center mb-1">
-                      {file.thumbnail ? (
-                        <img src={file.thumbnail} alt={file.name} className="w-full h-full object-cover rounded" />
-                      ) : (
-                        getFileIcon(file.type)
-                      )}
-                    </div>
-                    <span className="text-xs truncate w-full">{file.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDuration(file.duration)}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    {getFileIcon(file.type)}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs truncate">{file.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDuration(file.duration)}
-                      </p>
-                    </div>
-                  </>
+          <div className="space-y-1">
+            {/* Regular Media Section */}
+            {filteredRegularMedia.length > 0 && (
+              <div className="border-b border-border">
+                <button
+                  onClick={() => setShowRegularMedia(!showRegularMedia)}
+                  className="w-full flex items-center gap-2 px-4 py-2 hover:bg-secondary/30 transition-colors"
+                >
+                  {showRegularMedia ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
+                  <span className="text-sm font-medium">Media ({filteredRegularMedia.length})</span>
+                </button>
+                {showRegularMedia && (
+                  <div className={cn(
+                    "p-2",
+                    viewMode === 'grid' ? 'grid grid-cols-2 gap-2' : 'space-y-1'
+                  )}>
+                    {filteredRegularMedia.map(renderMediaItem)}
+                  </div>
                 )}
               </div>
-            ))}
+            )}
+
+            {/* AI B-roll Section */}
+            {filteredBrollMedia.length > 0 && (
+              <div className="border-b border-border">
+                <button
+                  onClick={() => setShowBrollMedia(!showBrollMedia)}
+                  className="w-full flex items-center gap-2 px-4 py-2 hover:bg-secondary/30 transition-colors"
+                >
+                  {showBrollMedia ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
+                  <Sparkles className="w-4 h-4 text-purple-500" />
+                  <span className="text-sm font-medium text-purple-400">
+                    AI B-roll ({filteredBrollMedia.length})
+                  </span>
+                </button>
+                {showBrollMedia && (
+                  <div className={cn(
+                    "p-2",
+                    viewMode === 'grid' ? 'grid grid-cols-2 gap-2' : 'space-y-1'
+                  )}>
+                    {filteredBrollMedia.map(renderMediaItem)}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* No results message */}
+            {filteredRegularMedia.length === 0 && filteredBrollMedia.length === 0 && (
+              <div className="text-center text-muted-foreground text-sm py-8">
+                <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>No media found</p>
+                <p className="text-xs mt-1">Try a different search term</p>
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* Image Preview Modal */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <img
+            src={`file://${previewImage}`}
+            alt="Preview"
+            className="max-w-[95%] max-h-[95%] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            onClick={() => setPreviewImage(null)}
+            className="absolute top-4 right-4 p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors"
+          >
+            <X className="w-6 h-6 text-white" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };

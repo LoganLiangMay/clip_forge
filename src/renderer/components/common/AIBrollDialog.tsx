@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useProjectStore } from '../../store/projectStore';
-import path from 'path';
 
 interface AIBrollDialogProps {
   isOpen: boolean;
@@ -10,34 +9,83 @@ interface AIBrollDialogProps {
 }
 
 export const AIBrollDialog: React.FC<AIBrollDialogProps> = ({ isOpen, onClose }) => {
-  const [script, setScript] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState('');
   const [error, setError] = useState('');
   const [preferVideos, setPreferVideos] = useState(true);
-  const [autoPlace, setAutoPlace] = useState(true);
-  const [addFades, setAddFades] = useState(true);
 
-  const { projectPath, addMediaFile, addAIClipsToTimeline } = useProjectStore();
+  const { projectPath, addMediaFile, tracks, mediaFiles } = useProjectStore();
 
-  const handleGenerate = async () => {
-    if (!script.trim()) {
-      setError('Please enter a script or description');
+  // Listen for progress updates from main process
+  useEffect(() => {
+    const extractionProgress = (prog: string) => setProgress(prog);
+    const transcriptionProgress = (prog: string) => setProgress(prog);
+
+    window.electronAPI.onExtractionProgress(extractionProgress);
+    window.electronAPI.onTranscriptionProgress(transcriptionProgress);
+  }, []);
+
+  const handleAnalyzeTimeline = async () => {
+    // Get all clips from timeline
+    const allClips = tracks.flatMap(track => track.clips);
+
+    if (allClips.length === 0) {
+      setError('No clips found on timeline. Add some media to the timeline first.');
       return;
     }
 
-    if (!projectPath) {
-      setError('Please save your project first to download AI B-roll media');
+    // Map clips to include file paths from media files
+    const clipsWithPaths = allClips
+      .map(clip => {
+        const mediaFile = mediaFiles.find(mf => mf.id === clip.mediaId);
+        if (!mediaFile) return null;
+
+        return {
+          id: clip.id,
+          filePath: mediaFile.path,
+          startTime: clip.startTime,
+          duration: clip.duration,
+          inPoint: clip.inPoint,
+          outPoint: clip.outPoint,
+          trackType: mediaFile.type,
+        };
+      })
+      .filter(Boolean);
+
+    if (clipsWithPaths.length === 0) {
+      setError('No valid clips found. Make sure your clips have associated media files.');
       return;
     }
 
     setIsGenerating(true);
     setError('');
-    setProgress('Analyzing your content...');
+    setProgress('Extracting audio from timeline...');
 
     try {
-      // Step 1: Analyze content with OpenAI
-      const analyzeResult = await window.electronAPI.aiAnalyzeContent(script);
+      // Step 1: Extract audio from timeline clips
+      const extractResult = await window.electronAPI.aiExtractAudio(clipsWithPaths);
+
+      if (!extractResult.success) {
+        throw new Error(extractResult.error || 'Failed to extract audio');
+      }
+
+      const audioPath = extractResult.data;
+      console.log('[AIBrollDialog] Audio extracted:', audioPath);
+
+      // Step 2: Transcribe audio with Whisper
+      setProgress('Transcribing audio with OpenAI Whisper...');
+      const transcribeResult = await window.electronAPI.aiTranscribeAudio(audioPath);
+
+      if (!transcribeResult.success) {
+        throw new Error(transcribeResult.error || 'Failed to transcribe audio');
+      }
+
+      const transcript = transcribeResult.data;
+      console.log('[AIBrollDialog] Transcript:', transcript);
+
+      // Step 3: Analyze transcript with GPT-4
+      setProgress('Analyzing content with AI...');
+      const analyzeResult = await window.electronAPI.aiAnalyzeContent(transcript);
 
       if (!analyzeResult.success) {
         throw new Error(analyzeResult.error || 'Failed to analyze content');
@@ -47,12 +95,12 @@ export const AIBrollDialog: React.FC<AIBrollDialogProps> = ({ isOpen, onClose })
       console.log('[AIBrollDialog] Scenes extracted:', scenes);
 
       if (!scenes || scenes.length === 0) {
-        throw new Error('No scenes extracted from your content. Try providing more detailed descriptions.');
+        throw new Error('No B-roll scenes identified. Try adding more descriptive audio to your timeline.');
       }
 
       setProgress(`Found ${scenes.length} scenes. Searching for media...`);
 
-      // Step 2: Search for media
+      // Step 4: Search for media
       const searchResult = await window.electronAPI.aiSearchMedia(scenes);
 
       if (!searchResult.success) {
@@ -63,14 +111,13 @@ export const AIBrollDialog: React.FC<AIBrollDialogProps> = ({ isOpen, onClose })
       console.log('[AIBrollDialog] Media results:', mediaResults);
 
       if (!mediaResults || mediaResults.length === 0) {
-        throw new Error('No media found for your scenes. Try using different keywords.');
+        throw new Error('No media found for your scenes. Try different content.');
       }
 
       setProgress(`Found ${mediaResults.length} media files. Downloading...`);
 
-      // Step 3: Download media
-      const projectDir = path.dirname(projectPath);
-      const downloadResult = await window.electronAPI.aiDownloadMedia(mediaResults, projectDir);
+      // Step 5: Download media to Downloads folder (simple default location)
+      const downloadResult = await window.electronAPI.aiDownloadMedia(mediaResults, null);
 
       if (!downloadResult.success) {
         throw new Error(downloadResult.error || 'Failed to download media');
@@ -83,40 +130,32 @@ export const AIBrollDialog: React.FC<AIBrollDialogProps> = ({ isOpen, onClose })
         throw new Error('Failed to download media files');
       }
 
-      setProgress('Adding media to library...');
+      setProgress('Adding B-roll to Media Library...');
 
-      // Add downloaded files to media library
+      // Add downloaded files to media library with B-roll category
       for (const file of downloadedFiles) {
+        // Extract filename from path (browser-compatible way)
+        const fileName = file.path.split('/').pop() || file.path.split('\\').pop() || 'untitled';
+
         const mediaFile = {
-          id: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          id: `ai-broll-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           path: file.path,
-          name: path.basename(file.path),
+          name: fileName,
           type: file.type as 'video' | 'image',
           duration: file.type === 'video' ? 5000 : 3000, // Default durations
+          metadata: {
+            isBroll: true,
+            topic: file.topic,
+            source: 'ai-generated',
+          },
         };
         addMediaFile(mediaFile);
       }
 
-      // Step 4: Auto-place on timeline if enabled
-      if (autoPlace) {
-        setProgress('Placing clips on timeline...');
-
-        const insertResult = await window.electronAPI.aiInsertToTimeline(downloadedFiles, scenes);
-
-        if (insertResult.success) {
-          const timelineInsertions = insertResult.data;
-          console.log('[AIBrollDialog] Timeline insertions:', timelineInsertions);
-
-          // Add clips to timeline via store
-          addAIClipsToTimeline(timelineInsertions);
-        }
-      }
-
-      setProgress(`✓ Complete! Added ${downloadedFiles.length} B-roll clips`);
+      setProgress(`✓ Complete! Added ${downloadedFiles.length} B-roll clips to Media Library`);
 
       setTimeout(() => {
         onClose();
-        setScript('');
         setProgress('');
       }, 2000);
 
@@ -154,26 +193,22 @@ export const AIBrollDialog: React.FC<AIBrollDialogProps> = ({ isOpen, onClose })
           {/* Instructions */}
           <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
             <p className="text-sm text-purple-100">
-              <strong>How it works:</strong> Describe your video content or paste your script.
-              AI will analyze it, find relevant stock footage, and add it to your project automatically.
+              <strong>How it works:</strong> The AI will extract audio from your timeline,
+              transcribe it using Whisper, analyze the content, and automatically find relevant
+              stock footage to add to your Media Library.
             </p>
           </div>
 
-          {/* Script Input */}
+          {/* Timeline Info */}
           <div className="space-y-2">
-            <label className="block text-sm font-medium">
-              Video Script or Description
-            </label>
-            <textarea
-              value={script}
-              onChange={(e) => setScript(e.target.value)}
-              placeholder="Example: A morning routine tutorial. Start with sunrise and coffee brewing, then show healthy breakfast preparation. Include shots of exercise and planning the day with a planner."
-              className="w-full h-40 px-4 py-3 bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all resize-none"
-              disabled={isGenerating}
-            />
-            <p className="text-xs text-muted-foreground">
-              Be specific about visual scenes and topics for best results
-            </p>
+            <p className="text-sm font-medium">Timeline Status</p>
+            <div className="bg-secondary border border-border rounded-lg p-4">
+              <p className="text-sm">
+                {tracks.flatMap(t => t.clips).length > 0
+                  ? `✓ ${tracks.flatMap(t => t.clips).length} clips found on timeline`
+                  : '⚠ No clips on timeline - add media to timeline first'}
+              </p>
+            </div>
           </div>
 
           {/* Options */}
@@ -191,27 +226,9 @@ export const AIBrollDialog: React.FC<AIBrollDialogProps> = ({ isOpen, onClose })
               <span className="text-sm">Prefer video clips over images</span>
             </label>
 
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={autoPlace}
-                onChange={(e) => setAutoPlace(e.target.checked)}
-                disabled={isGenerating}
-                className="w-4 h-4 rounded border-border"
-              />
-              <span className="text-sm">Automatically place clips on timeline (Track V2)</span>
-            </label>
-
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={addFades}
-                onChange={(e) => setAddFades(e.target.checked)}
-                disabled={isGenerating}
-                className="w-4 h-4 rounded border-border"
-              />
-              <span className="text-sm">Add fade in/out transitions</span>
-            </label>
+            <p className="text-xs text-muted-foreground">
+              💡 B-roll will be added to your Media Library. Manually drag clips to timeline as needed.
+            </p>
           </div>
 
           {/* Progress */}
@@ -248,8 +265,8 @@ export const AIBrollDialog: React.FC<AIBrollDialogProps> = ({ isOpen, onClose })
             Cancel
           </button>
           <button
-            onClick={handleGenerate}
-            disabled={!script.trim() || isGenerating || !projectPath}
+            onClick={handleAnalyzeTimeline}
+            disabled={isGenerating || tracks.flatMap(t => t.clips).length === 0}
             className={cn(
               "px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2",
               "disabled:bg-gray-600 disabled:cursor-not-allowed"
@@ -258,12 +275,12 @@ export const AIBrollDialog: React.FC<AIBrollDialogProps> = ({ isOpen, onClose })
             {isGenerating ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Generating...
+                Analyzing...
               </>
             ) : (
               <>
                 <Sparkles className="w-4 h-4" />
-                Generate B-roll
+                Analyze Timeline
               </>
             )}
           </button>

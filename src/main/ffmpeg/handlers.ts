@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 
 // Function to get FFmpeg paths that work in both development and production
-function getFFmpegPaths() {
+export function getFFmpegPaths() {
   const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
   if (isDev) {
@@ -296,27 +296,20 @@ export function setupFFmpegHandlers() {
               actualEndTime: clip.startTime + trimDuration
             });
 
-            // Build filter for this single clip
-            let clipFilter = `[0:v]trim=start=${trimStart}:duration=${trimDuration},setpts=PTS-STARTPTS,scale=${resolution},fps=${fps}[v];`;
-
-            if (!clip.muted) {
-              clipFilter += `[0:a]atrim=start=${trimStart}:duration=${trimDuration},asetpts=PTS-STARTPTS,volume=${clip.volume || 1}[a]`;
-            } else {
-              // For muted clips, create silence for the actual trimmed duration
-              clipFilter += `anullsrc=channel_layout=stereo:sample_rate=44100:duration=${trimDuration}[a]`;
-            }
-
+            // Use simpler approach with seekInput and duration (more reliable for mixed formats)
+            // This avoids complex filter issues with WebM files
             ffmpeg(clip.filePath)
-              .complexFilter(clipFilter)
+              .seekInput(trimStart)
+              .duration(trimDuration)
+              .videoFilters(`scale=${resolution},fps=${fps}`)
               .outputOptions([
-                '-map [v]',
-                '-map [a]',
-                // Ensure consistent encoding for concatenation
                 '-pix_fmt yuv420p',
                 '-preset fast',
-                '-g 30', // Keyframe every 30 frames (1 second at 30fps)
-                '-sc_threshold 0', // Disable scene change detection
-                '-force_key_frames expr:gte(t,n_forced*1)' // Force keyframe every 1 second
+                '-g 30',
+                '-sc_threshold 0',
+                '-force_key_frames expr:gte(t,n_forced*1)',
+                '-map 0:v:0',  // Map video
+                '-map 0:a?',   // Map audio if it exists (? makes it optional for files without audio)
               ])
               .videoCodec('libx264')
               .videoBitrate(bitrate)

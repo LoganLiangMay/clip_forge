@@ -81,6 +81,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('ai:download-media', mediaResults, projectPath),
   aiInsertToTimeline: (downloadedFiles: any[], scenes: any[]) =>
     ipcRenderer.invoke('ai:insert-timeline', downloadedFiles, scenes),
+  aiExtractAudio: (clips: any[]) =>
+    ipcRenderer.invoke('ai:extract-audio', clips),
+  aiTranscribeAudio: (audioPath: string) =>
+    ipcRenderer.invoke('ai:transcribe-audio', audioPath),
+  onExtractionProgress: (callback: (progress: string) => void) => {
+    ipcRenderer.on('ai:extraction-progress', (_, progress) => callback(progress));
+  },
+  onTranscriptionProgress: (callback: (progress: string) => void) => {
+    ipcRenderer.on('ai:transcription-progress', (_, progress) => callback(progress));
+  },
 
   // Menu Events
   onMenuAction: (callback: (action: string) => void) => {
@@ -173,6 +183,10 @@ declare global {
       aiSearchMedia: (scenes: any[]) => Promise<any>;
       aiDownloadMedia: (mediaResults: any[], projectPath: string) => Promise<any>;
       aiInsertToTimeline: (downloadedFiles: any[], scenes: any[]) => Promise<any>;
+      aiExtractAudio: (clips: any[]) => Promise<any>;
+      aiTranscribeAudio: (audioPath: string) => Promise<any>;
+      onExtractionProgress: (callback: (progress: string) => void) => void;
+      onTranscriptionProgress: (callback: (progress: string) => void) => void;
       onMenuAction: (callback: (action: string) => void) => (() => void);
       startAutoSave: () => void;
       stopAutoSave: () => void;

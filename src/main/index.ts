@@ -1,3 +1,9 @@
+// Polyfill File for OpenAI SDK - must be first!
+import { File } from 'buffer';
+if (typeof globalThis.File === 'undefined') {
+  (globalThis as any).File = File;
+}
+
 import { app, BrowserWindow, Menu, ipcMain, protocol, net } from 'electron';
 import path from 'path';
 import { createApplicationMenu } from './menu/applicationMenu';
