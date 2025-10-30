@@ -95,9 +95,21 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                 value={openaiKey}
                 onChange={(e) => setOpenaiKey(e.target.value)}
                 onPaste={(e) => {
+                  e.preventDefault();
                   e.stopPropagation();
                   const pastedText = e.clipboardData.getData('text');
                   setOpenaiKey(pastedText);
+                }}
+                onKeyDown={(e) => {
+                  // Handle Cmd+V / Ctrl+V manually
+                  if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
+                    e.preventDefault();
+                    navigator.clipboard.readText().then(text => {
+                      setOpenaiKey(text);
+                    }).catch(err => {
+                      console.error('Failed to read clipboard:', err);
+                    });
+                  }
                 }}
                 placeholder="sk-..."
                 className="w-full px-4 py-2 pr-10 bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
@@ -138,9 +150,21 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                 value={serpApiKey}
                 onChange={(e) => setSerpApiKey(e.target.value)}
                 onPaste={(e) => {
+                  e.preventDefault();
                   e.stopPropagation();
                   const pastedText = e.clipboardData.getData('text');
                   setSerpApiKey(pastedText);
+                }}
+                onKeyDown={(e) => {
+                  // Handle Cmd+V / Ctrl+V manually
+                  if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
+                    e.preventDefault();
+                    navigator.clipboard.readText().then(text => {
+                      setSerpApiKey(text);
+                    }).catch(err => {
+                      console.error('Failed to read clipboard:', err);
+                    });
+                  }
                 }}
                 placeholder="..."
                 className="w-full px-4 py-2 pr-10 bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
