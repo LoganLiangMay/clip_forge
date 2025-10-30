@@ -6,10 +6,22 @@ import { Properties } from './components/panels/Properties';
 import { TitleBar } from './components/common/TitleBar';
 import { Toolbar } from './components/common/Toolbar';
 import { ExportDialog } from './components/common/ExportDialog';
+import { CameraBubbleOverlay } from './components/overlays/CameraBubbleOverlay';
+import { RecordingControlsOverlay } from './components/overlays/RecordingControlsOverlay';
 import { useProjectStore } from './store/projectStore';
 import { useUIStore } from './store/uiStore';
 
 function App() {
+  // Check if this is an overlay window
+  const hash = window.location.hash.slice(1); // Remove the #
+
+  if (hash === '/camera-bubble') {
+    return <CameraBubbleOverlay />;
+  }
+
+  if (hash === '/recording-controls') {
+    return <RecordingControlsOverlay />;
+  }
   const { loadProject, saveProject, createNewProject } = useProjectStore();
   const { showSidePanel, showPropertiesPanel } = useUIStore();
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -123,17 +135,67 @@ function App() {
 
   const handleDeleteClip = () => {
     const { selectedClipId, removeClipFromTimeline } = useProjectStore.getState();
+    console.log('[App] Delete key pressed, selectedClipId:', selectedClipId);
     if (selectedClipId) {
+      console.log('[App] Deleting clip:', selectedClipId);
       removeClipFromTimeline(selectedClipId);
+    } else {
+      console.log('[App] No clip selected, cannot delete');
     }
   };
 
   const handleSplitClip = () => {
-    const { selectedClipId, splitClip, currentTime } = useProjectStore.getState();
-    if (selectedClipId) {
-      splitClip(selectedClipId, currentTime);
+    const { selectedClipId, splitClip, currentTime, tracks } = useProjectStore.getState();
+    if (!selectedClipId) return;
+
+    // Find the selected clip
+    const selectedClip = tracks.flatMap(t => t.clips).find(c => c.id === selectedClipId);
+    if (!selectedClip) return;
+
+    // Check if playhead is within the clip bounds
+    const clipStart = selectedClip.startTime;
+    const clipEnd = selectedClip.startTime + (selectedClip.outPoint - selectedClip.inPoint);
+
+    if (currentTime <= clipStart || currentTime >= clipEnd) {
+      console.log('[Split] Playhead is outside clip bounds');
+      return;
     }
+
+    console.log(`[Split] Splitting clip ${selectedClipId} at time ${currentTime}`);
+    splitClip(selectedClipId, currentTime);
   };
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input field
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      // Split clip on 'S' key
+      if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        handleSplitClip();
+      }
+
+      // Delete clip on Delete/Backspace key
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        handleDeleteClip();
+      }
+
+      // Play/Pause on Space key
+      if (e.key === ' ') {
+        e.preventDefault();
+        useUIStore.getState().togglePlayback();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground">

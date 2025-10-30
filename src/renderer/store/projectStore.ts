@@ -167,7 +167,8 @@ export const useProjectStore = create<ProjectState>((set) => ({
             // Sort clips by start time to find the rightmost clip
             const sortedClips = [...targetTrack.clips].sort((a, b) => a.startTime - b.startTime);
             const rightmostClip = sortedClips[sortedClips.length - 1];
-            const rightmostEnd = rightmostClip.startTime + rightmostClip.duration;
+            // Use actual trimmed duration
+            const rightmostEnd = rightmostClip.startTime + (rightmostClip.outPoint - rightmostClip.inPoint);
 
             // ALWAYS place new clip at the end of the last clip
             console.log(`Auto-snapping to end of last clip at ${rightmostEnd}`);
@@ -183,7 +184,8 @@ export const useProjectStore = create<ProjectState>((set) => ({
             // Check if clip would overlap with any existing clips on this track
             const wouldOverlap = track.clips.some(existingClip => {
               const newEnd = finalStartTime + media.duration;
-              const existingEnd = existingClip.startTime + existingClip.duration;
+              // Use actual trimmed duration for existing clips
+              const existingEnd = existingClip.startTime + (existingClip.outPoint - existingClip.inPoint);
               return !(newEnd <= existingClip.startTime || finalStartTime >= existingEnd);
             });
 
@@ -260,9 +262,10 @@ export const useProjectStore = create<ProjectState>((set) => ({
       });
 
       // Update project duration - ensure it's at least as long as all clips
+      // Always calculate from trim points to ensure accuracy
       const maxEndTime = Math.max(
         0,
-        ...updatedTracks.flatMap(t => t.clips.map(c => c.startTime + c.duration))
+        ...updatedTracks.flatMap(t => t.clips.map(c => c.startTime + (c.outPoint - c.inPoint)))
       );
 
       console.log(`Project duration update: maxEndTime=${maxEndTime}, current duration=${state.duration}`);
@@ -363,38 +366,71 @@ export const useProjectStore = create<ProjectState>((set) => ({
     historyStore.saveState();
 
     set((state) => {
-    const updatedTracks = state.tracks.map(track => ({
-      ...track,
-      clips: track.clips.map(clip => {
-        if (clip.id === clipId) {
-          const timeDiff = newStartTime - clip.startTime;
-          const newDuration = clip.duration - timeDiff;
-          const newInPoint = clip.inPoint + timeDiff;
+    // First pass: Update the trimmed clip and calculate duration change
+    let startTimeChange = 0;
+    let trimmedClipTrackId = '';
+    let oldStartTime = 0;
 
-          // Allow expanding back to original (in-point can go down to 0)
-          // but don't allow negative duration
-          if (newDuration <= 0 || newInPoint < 0) return clip; // Invalid trim
+    const updatedTracks = state.tracks.map(track => {
+      const clipIndex = track.clips.findIndex(c => c.id === clipId);
+      if (clipIndex === -1) return track;
 
-          return {
-            ...clip,
-            startTime: newStartTime,
-            duration: newDuration,
-            inPoint: newInPoint,
-          };
-        }
-        return clip;
-      }),
+      const clip = track.clips[clipIndex];
+      trimmedClipTrackId = track.id;
+      oldStartTime = clip.startTime;
+
+      console.log(`[trimClipStart] BEFORE: clipId=${clipId}, startTime=${clip.startTime}, duration=${clip.duration}, inPoint=${clip.inPoint}, outPoint=${clip.outPoint}`);
+      console.log(`[trimClipStart] newStartTime=${newStartTime}`);
+
+      const timeDiff = newStartTime - clip.startTime;
+      const newDuration = clip.duration - timeDiff;
+      const newInPoint = clip.inPoint + timeDiff;
+
+      console.log(`[trimClipStart] Calculated: timeDiff=${timeDiff}, newDuration=${newDuration}, newInPoint=${newInPoint}`);
+
+      // Allow expanding back to original (in-point can go down to 0)
+      // but don't allow negative duration
+      if (newDuration <= 0 || newInPoint < 0) return track;
+
+      startTimeChange = newStartTime - oldStartTime;
+      console.log(`[trimClipStart-RIPPLE] startTimeChange=${startTimeChange.toFixed(3)}`);
+
+      const updatedClip = {
+        ...clip,
+        startTime: newStartTime,
+        duration: newDuration,
+        inPoint: newInPoint,
+      };
+
+      return {
+        ...track,
+        clips: track.clips.map(c => c.id === clipId ? updatedClip : c)
+      };
+    });
+
+    // Update project duration after trimming (no ripple during drag)
+    // Always calculate from trim points to ensure accuracy
+    const clipDurations = updatedTracks.flatMap(t => t.clips.map(c => {
+      const trimmedDuration = c.outPoint - c.inPoint;
+      const endTime = c.startTime + trimmedDuration;
+      return endTime;
     }));
+    const maxEndTime = Math.max(0, ...clipDurations);
 
-    // Update project duration after trimming
-    const maxEndTime = Math.max(
-      0,
-      ...updatedTracks.flatMap(t => t.clips.map(c => c.startTime + c.duration))
-    );
+    // Auto-adjust currentTime if it's beyond the new clip end
+    let adjustedCurrentTime = state.currentTime;
+    const trimmedClip = updatedTracks.flatMap(t => t.clips).find(c => c.id === clipId);
+    if (trimmedClip) {
+      const clipEnd = trimmedClip.startTime + (trimmedClip.outPoint - trimmedClip.inPoint);
+      if (state.currentTime > clipEnd) {
+        adjustedCurrentTime = clipEnd;
+      }
+    }
 
     return {
       tracks: updatedTracks,
       duration: maxEndTime,
+      currentTime: adjustedCurrentTime,
       isDirty: true
     };
     });
@@ -406,44 +442,81 @@ export const useProjectStore = create<ProjectState>((set) => ({
     historyStore.saveState();
 
     set((state) => {
-    const updatedTracks = state.tracks.map(track => ({
-      ...track,
-      clips: track.clips.map(clip => {
-        if (clip.id === clipId) {
-          const newDuration = newEndTime - clip.startTime;
-          const newOutPoint = clip.inPoint + newDuration;
+    // First pass: Update the trimmed clip and calculate duration change
+    let durationChange = 0;
+    let trimmedClipTrackId = '';
+    let oldEndTime = 0;
 
-          // Validate that outPoint is greater than inPoint (minimum 0.1s clip)
-          if (newOutPoint <= clip.inPoint + 0.1) {
-            console.warn(`Cannot trim clip to less than 0.1s duration`);
-            return clip; // Invalid trim
-          }
+    const updatedTracks = state.tracks.map(track => {
+      const clipIndex = track.clips.findIndex(c => c.id === clipId);
+      if (clipIndex === -1) return track;
 
-          // Find the media to check against original duration
-          const media = state.mediaFiles.find(m => m.id === clip.mediaId);
-          const maxDuration = media && isFinite(media.duration) ? media.duration - clip.inPoint : newDuration;
+      const clip = track.clips[clipIndex];
+      trimmedClipTrackId = track.id;
 
-          if (newDuration <= 0 || newDuration > maxDuration) return clip; // Invalid trim
+      console.log(`[trimClipEnd] BEFORE: clipId=${clipId}, startTime=${clip.startTime}, duration=${clip.duration}, inPoint=${clip.inPoint}, outPoint=${clip.outPoint}`);
+      console.log(`[trimClipEnd] newEndTime=${newEndTime}`);
 
-          return {
-            ...clip,
-            duration: newDuration,
-            outPoint: newOutPoint,
-          };
-        }
-        return clip;
-      }),
+      const newDuration = newEndTime - clip.startTime;
+      const newOutPoint = clip.inPoint + newDuration;
+
+      console.log(`[trimClipEnd] Calculated: newDuration=${newDuration}, newOutPoint=${newOutPoint}`);
+
+      // Validate that outPoint is greater than inPoint (minimum 0.1s clip)
+      if (newOutPoint <= clip.inPoint + 0.1) {
+        console.warn(`Cannot trim clip to less than 0.1s duration`);
+        return track;
+      }
+
+      // Find the media to check against original duration
+      const media = state.mediaFiles.find(m => m.id === clip.mediaId);
+      const maxDuration = media && isFinite(media.duration) ? media.duration - clip.inPoint : newDuration;
+
+      if (newDuration <= 0 || newDuration > maxDuration) return track;
+
+      // Calculate how much the duration changed (for ripple)
+      oldEndTime = clip.startTime + (clip.outPoint - clip.inPoint);
+      const newEndTimeActual = clip.startTime + newDuration;
+      durationChange = oldEndTime - newEndTimeActual;
+
+      console.log(`[trimClipEnd-RIPPLE] oldEndTime=${oldEndTime.toFixed(3)}, newEndTime=${newEndTimeActual.toFixed(3)}, durationChange=${durationChange.toFixed(3)}`);
+
+      // Update the trimmed clip
+      const updatedClip = {
+        ...clip,
+        duration: newDuration,
+        outPoint: newOutPoint,
+      };
+
+      return {
+        ...track,
+        clips: track.clips.map(c => c.id === clipId ? updatedClip : c)
+      };
+    });
+
+    // Update project duration after trimming (no ripple during drag)
+    // Always calculate from trim points to ensure accuracy
+    const clipDurations = updatedTracks.flatMap(t => t.clips.map(c => {
+      const trimmedDuration = c.outPoint - c.inPoint;
+      const endTime = c.startTime + trimmedDuration;
+      return endTime;
     }));
+    const maxEndTime = Math.max(0, ...clipDurations);
 
-    // Update project duration after trimming
-    const maxEndTime = Math.max(
-      0,
-      ...updatedTracks.flatMap(t => t.clips.map(c => c.startTime + c.duration))
-    );
+    // Auto-adjust currentTime if it's beyond the new clip end
+    let adjustedCurrentTime = state.currentTime;
+    const trimmedClip = updatedTracks.flatMap(t => t.clips).find(c => c.id === clipId);
+    if (trimmedClip) {
+      const clipEnd = trimmedClip.startTime + (trimmedClip.outPoint - trimmedClip.inPoint);
+      if (state.currentTime > clipEnd) {
+        adjustedCurrentTime = clipEnd;
+      }
+    }
 
     return {
       tracks: updatedTracks,
       duration: maxEndTime,
+      currentTime: adjustedCurrentTime,
       isDirty: true
     };
     });
@@ -488,8 +561,9 @@ export const useProjectStore = create<ProjectState>((set) => ({
     });
 
     // Update project duration
+    // Always calculate from trim points to ensure accuracy
     const maxEndTime = Math.max(
-      ...updatedTracks.flatMap(t => t.clips.map(c => c.startTime + c.duration))
+      ...updatedTracks.flatMap(t => t.clips.map(c => c.startTime + (c.outPoint - c.inPoint)))
     );
 
     return {
@@ -512,7 +586,8 @@ export const useProjectStore = create<ProjectState>((set) => ({
         const duplicatedClip: TimelineClip = {
           ...clip,
           id: Date.now().toString(),
-          startTime: clip.startTime + clip.duration, // Place after original
+          // Place after original using actual trimmed duration
+          startTime: clip.startTime + (clip.outPoint - clip.inPoint),
         };
         return {
           ...track,

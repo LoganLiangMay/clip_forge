@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Play, Pause, Volume2, Maximize2 } from 'lucide-react';
+import { Play, Pause, Volume2, Maximize2, Scissors } from 'lucide-react';
 import { useUIStore } from '../../store/uiStore';
 import { useProjectStore } from '../../store/projectStore';
 import { useVideoComposition } from '../../hooks/useVideoComposition';
@@ -7,7 +7,7 @@ import { useVideoComposition } from '../../hooks/useVideoComposition';
 export const Preview: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const { isPlaying, togglePlayback, playbackRate } = useUIStore();
-  const { currentTime, setCurrentTime, duration } = useProjectStore();
+  const { currentTime, setCurrentTime, duration, selectedClipId, splitClip, tracks } = useProjectStore();
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
 
@@ -88,6 +88,42 @@ export const Preview: React.FC = () => {
     }
   };
 
+  const handleSplitClip = () => {
+    if (!selectedClipId) {
+      console.log('[Split] No clip selected');
+      return;
+    }
+
+    // Find the selected clip
+    const selectedClip = tracks.flatMap(t => t.clips).find(c => c.id === selectedClipId);
+    if (!selectedClip) {
+      console.log('[Split] Selected clip not found');
+      return;
+    }
+
+    // Check if playhead is within the clip bounds
+    const clipStart = selectedClip.startTime;
+    const clipEnd = selectedClip.startTime + (selectedClip.outPoint - selectedClip.inPoint);
+
+    if (currentTime <= clipStart || currentTime >= clipEnd) {
+      console.log('[Split] Playhead is outside clip bounds');
+      return;
+    }
+
+    console.log(`[Split] Splitting clip ${selectedClipId} at time ${currentTime}`);
+    splitClip(selectedClipId, currentTime);
+  };
+
+  // Determine if split button should be enabled
+  const canSplit = (() => {
+    if (!selectedClipId) return false;
+    const selectedClip = tracks.flatMap(t => t.clips).find(c => c.id === selectedClipId);
+    if (!selectedClip) return false;
+    const clipStart = selectedClip.startTime;
+    const clipEnd = selectedClip.startTime + (selectedClip.outPoint - selectedClip.inPoint);
+    return currentTime > clipStart && currentTime < clipEnd;
+  })();
+
   const formatTime = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -149,6 +185,14 @@ export const Preview: React.FC = () => {
               className="p-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded"
             >
               {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+            </button>
+            <button
+              onClick={handleSplitClip}
+              disabled={!canSplit}
+              className="p-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+              title={canSplit ? "Split clip at playhead (S)" : "Select a clip and position playhead to split"}
+            >
+              <Scissors className="w-4 h-4" />
             </button>
           </div>
 

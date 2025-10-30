@@ -3,6 +3,7 @@ import path from 'path';
 import { createApplicationMenu } from './menu/applicationMenu';
 import { setupFFmpegHandlers } from './ffmpeg/handlers';
 import { setupIpcHandlers } from './ipc/handlers';
+import { closeAllOverlays } from './windows/overlayWindows';
 import { createReadStream } from 'fs';
 import { stat } from 'fs/promises';
 import * as fs from 'fs';
@@ -69,6 +70,8 @@ const createWindow = () => {
   }
 
   mainWindow.on('closed', () => {
+    // Close all overlay windows when main window closes
+    closeAllOverlays();
     mainWindow = null;
   });
 };
@@ -211,6 +214,9 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  // Close all overlay windows
+  closeAllOverlays();
+
   if (process.platform !== 'darwin') {
     app.quit();
   }

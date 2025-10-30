@@ -14,6 +14,7 @@ export const Timeline: React.FC = () => {
   const [isDraggingPlayhead, setIsDraggingPlayhead] = useState(false);
   const [dragEndTime, setDragEndTime] = useState<number | null>(null);
   const wasPlayingBeforeDrag = useRef(false);
+  const maxDurationRef = useRef<number>(10); // Track maximum duration ever reached
 
   useEffect(() => {
     const updateTimelineWidth = () => {
@@ -58,8 +59,15 @@ export const Timeline: React.FC = () => {
     setTimelineZoom(1);
   };
 
-  // Calculate pixels per second based on actual duration, with a minimum display of 30 seconds
-  const displayDuration = Math.max(duration, 30);
+  // Update max duration - timeline only grows, never shrinks
+  // This keeps tickers stable when trimming clips
+  if (duration > maxDurationRef.current) {
+    maxDurationRef.current = duration;
+  }
+
+  // Calculate pixels per second based on max duration ever reached
+  // This ensures tickers stay fixed and clips visually shrink when trimmed
+  const displayDuration = Math.max(maxDurationRef.current, 10);
   const pixelsPerSecond = (timelineWidth * timelineZoom) / displayDuration;
 
   // Handle clicking on timeline to seek

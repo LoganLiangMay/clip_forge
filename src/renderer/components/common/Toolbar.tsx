@@ -148,7 +148,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onExport }) => {
           <Film className="w-4 h-4" />
         </button>
         <button
-          onClick={() => setShowRecordingDialog(true)}
+          onClick={async () => {
+            // Create overlay windows immediately (Loom-style)
+            await window.electronAPI.createCameraBubbleOverlay({ x: 20, y: window.innerHeight - 140 });
+            await window.electronAPI.createControlsOverlay();
+          }}
           className="p-2 hover:bg-background rounded transition-colors"
           title="Record Screen/Webcam"
         >

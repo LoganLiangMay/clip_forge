@@ -1,5 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+console.log('[Preload] Loading preload script...');
+console.log('[Preload] contextBridge available:', !!contextBridge);
+console.log('[Preload] ipcRenderer available:', !!ipcRenderer);
+
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -34,6 +38,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Desktop Capturer API
   getDesktopSources: () =>
     ipcRenderer.invoke('desktop:get-sources'),
+
+  // Overlay Window API
+  createCameraBubbleOverlay: (position?: { x: number; y: number }) =>
+    ipcRenderer.invoke('overlay:create-camera-bubble', position),
+  createControlsOverlay: () =>
+    ipcRenderer.invoke('overlay:create-controls'),
+  closeAllOverlays: () =>
+    ipcRenderer.invoke('overlay:close-all'),
+  closeCameraBubble: () =>
+    ipcRenderer.invoke('overlay:close-camera-bubble'),
+  updateCameraPosition: (x: number, y: number) =>
+    ipcRenderer.invoke('overlay:update-camera-position', { x, y }),
+  moveWindow: (deltaX: number, deltaY: number) =>
+    ipcRenderer.invoke('window:move', { deltaX, deltaY }),
 
   // File System API
   readFile: (filePath: string) =>
@@ -98,6 +116,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 });
 
+console.log('[Preload] electronAPI exposed to window');
+
 // Add type declarations
 declare global {
   interface Window {
@@ -115,6 +135,12 @@ declare global {
       exportVideo: (params: any) => Promise<any>;
       concatVideos: (params: any) => Promise<any>;
       getDesktopSources: () => Promise<any>;
+      createCameraBubbleOverlay: (position?: { x: number; y: number }) => Promise<any>;
+      createControlsOverlay: () => Promise<any>;
+      closeAllOverlays: () => Promise<any>;
+      closeCameraBubble: () => Promise<any>;
+      updateCameraPosition: (x: number, y: number) => Promise<any>;
+      moveWindow: (deltaX: number, deltaY: number) => Promise<any>;
       readFile: (filePath: string) => Promise<any>;
       writeFile: (filePath: string, data: any) => Promise<any>;
       ensureDir: (dirPath: string) => Promise<any>;

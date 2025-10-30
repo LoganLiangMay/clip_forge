@@ -34,9 +34,12 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
 
   if (!media) return null;
 
-  const clipWidth = clip.duration * pixelsPerSecond;
+  // Use actual trimmed duration for visual width
+  const trimmedDuration = clip.outPoint - clip.inPoint;
+  const clipWidth = trimmedDuration * pixelsPerSecond;
+
   const { peaks } = useWaveform(trackType === 'audio' ? media.path : '');
-  const TRIM_HANDLE_WIDTH = 10; // Width in pixels for trim detection
+  const TRIM_HANDLE_WIDTH = 15; // Width in pixels for trim detection - increased for easier grabbing
 
   // Handle mouse movement to detect trim zones
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -64,6 +67,7 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!isDragging && trimMode === 'none') {
+      console.log('[TimelineClip] Clip selected:', clip.id);
       onSelect();
     }
   };
@@ -77,11 +81,13 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
     if (cursorType === 'trim-start') {
       setTrimMode('start');
       originalClipStart.current = clip.startTime;
-      originalClipDuration.current = clip.duration;
+      // Store actual trimmed duration for accurate calculations
+      originalClipDuration.current = clip.outPoint - clip.inPoint;
       handleTrimStart();
     } else if (cursorType === 'trim-end') {
       setTrimMode('end');
-      originalClipDuration.current = clip.duration;
+      // Store actual trimmed duration for accurate calculations
+      originalClipDuration.current = clip.outPoint - clip.inPoint;
       handleTrimEnd();
     } else {
       setIsDragging(true);
@@ -104,7 +110,7 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
       const minStartTime = originalClipStart.current - clip.inPoint; // Can go back to original media start
       const clampedStartTime = Math.max(minStartTime, Math.min(newStartTime, maxStartTime));
 
-      // Update the clip by trimming the start
+      // Update the clip by trimming the start - immediate feedback, no throttling
       trimClipStart(clip.id, clampedStartTime);
     };
 
@@ -122,27 +128,43 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
           const timeDiff = newStartTime - originalClipStart.current;
 
           // Find clips that were connected to this clip's start (their end connects to our original start)
-          const connectedClips = currentTrack.clips.filter(c =>
-            c.id !== clip.id && Math.abs((c.startTime + c.duration) - originalClipStart.current) < 0.01
-          );
+          // Find clips that END before/at the new start position (auto-snap - always connect clips)
+          const nearbyClips = currentTrack.clips.filter(c => {
+            const clipEnd = c.startTime + (c.outPoint - c.inPoint);
+            // Snap any clip whose end is before or near our new start
+            return c.id !== clip.id && clipEnd <= newStartTime + 0.1;
+          }).sort((a, b) => {
+            // Sort by end time, get the rightmost clip
+            const aEnd = a.startTime + (a.outPoint - a.inPoint);
+            const bEnd = b.startTime + (b.outPoint - b.inPoint);
+            return bEnd - aEnd; // Descending order
+          });
 
-          // Move connected clips to maintain the connection
-          if (connectedClips.length > 0 && Math.abs(timeDiff) > 0.01) {
+          // Snap to the rightmost clip before us
+          const clipToSnap = nearbyClips[0];
+
+          // Snap the previous clip (extend its end to meet new start)
+          if (clipToSnap) {
+            console.log(`[trimClipStart] Auto-snapping previous clip ${clipToSnap.id} to connect at ${newStartTime.toFixed(3)}`);
             useProjectStore.setState((state) => ({
               tracks: state.tracks.map(track => {
                 if (track.id === currentTrack.id) {
                   return {
                     ...track,
                     clips: track.clips.map(c => {
-                      // Check if this clip was connected to the trimmed clip's start
-                      if (connectedClips.some(cc => cc.id === c.id)) {
-                        // Adjust the connected clip's duration to maintain connection
-                        const oldEndTime = c.startTime + c.duration;
+                      // Only extend the clip immediately before us
+                      if (c.id === clipToSnap.id) {
+                        // Extend this clip's outPoint to connect to new start
                         const newDuration = newStartTime - c.startTime;
-                        return {
-                          ...c,
-                          duration: Math.max(0.1, newDuration), // Ensure minimum duration
-                        };
+                        const newOutPoint = c.inPoint + newDuration;
+                        if (newDuration >= 0.1) {
+                          console.log(`[trimClipStart] Extending clip from ${(c.outPoint - c.inPoint).toFixed(3)}s to ${newDuration.toFixed(3)}s`);
+                          return {
+                            ...c,
+                            duration: newDuration,
+                            outPoint: newOutPoint,
+                          };
+                        }
                       }
                       return c;
                     }),
@@ -153,29 +175,49 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
             }));
           }
 
-          // Apply magnetic timeline after trimming
+          // Apply magnetic timeline for LEFTMOST clip
+          // Always snap the first clip to 00:00 after left-edge trim
           const updatedState = useProjectStore.getState();
           const updatedTrack = updatedState.tracks.find(t => t.id === currentTrack.id);
           if (updatedTrack && updatedTrack.clips.length > 0) {
-            // Find the minimum start time across all clips
-            const minStartTime = Math.min(...updatedTrack.clips.map(c => c.startTime));
+            // Find the leftmost clip (smallest startTime)
+            const sortedClips = [...updatedTrack.clips].sort((a, b) => a.startTime - b.startTime);
+            const leftmostClip = sortedClips[0];
 
-            // If leftmost clip is not at 0, shift all clips left
-            if (minStartTime !== 0) {
-              useProjectStore.setState((state) => ({
-                tracks: state.tracks.map(track => {
+            // If this is the leftmost clip and it's not at 0, snap it to 0
+            if (leftmostClip.id === currentClip.id && leftmostClip.startTime !== 0) {
+              console.log(`[trimClipStart-magnetic] Leftmost clip detected, snapping to 0 from ${leftmostClip.startTime}`);
+
+              const shiftAmount = leftmostClip.startTime;
+
+              useProjectStore.setState((state) => {
+                const updatedTracks = state.tracks.map(track => {
                   if (track.id === updatedTrack.id) {
                     return {
                       ...track,
                       clips: track.clips.map(c => ({
                         ...c,
-                        startTime: c.startTime - minStartTime,
+                        startTime: c.startTime - shiftAmount, // Shift all clips left
                       })),
                     };
                   }
                   return track;
-                }),
-              }));
+                });
+
+                // Recalculate project duration after magnetic snap
+                const clipDurations = updatedTracks.flatMap(t => t.clips.map(c => {
+                  const trimmedDuration = c.outPoint - c.inPoint;
+                  const endTime = c.startTime + trimmedDuration;
+                  return endTime;
+                }));
+                const maxEndTime = Math.max(0, ...clipDurations);
+                console.log(`[trimClipStart-magnetic] New project duration after snap to 0: ${maxEndTime}`);
+
+                return {
+                  tracks: updatedTracks,
+                  duration: maxEndTime,
+                };
+              });
             }
           }
         }
@@ -192,7 +234,9 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
   };
 
   const handleTrimEnd = () => {
-    const originalEndTime = clip.startTime + clip.duration;
+    // Use trimmed duration for original end time
+    const originalEndTime = clip.startTime + (clip.outPoint - clip.inPoint);
+    console.log(`[handleTrimEnd] Starting trim from right edge: originalEndTime=${originalEndTime.toFixed(3)}s`);
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const deltaX = moveEvent.clientX - dragStartX.current;
@@ -209,7 +253,12 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
       const maxEndTime = clip.startTime + (originalMediaDuration - clip.inPoint);
       const clampedEndTime = Math.max(minEndTime, Math.min(newEndTime, maxEndTime));
 
-      // Update the clip by trimming the end
+      // Calculate expected new width
+      const expectedDuration = clampedEndTime - clip.startTime;
+      const expectedWidth = expectedDuration * pixelsPerSecond;
+      console.log(`[handleTrimEnd] deltaX=${deltaX.toFixed(2)}px, newEndTime=${clampedEndTime.toFixed(3)}s, expectedWidth=${expectedWidth.toFixed(2)}px`);
+
+      // Update the clip by trimming the end - immediate feedback, no throttling
       trimClipEnd(clip.id, clampedEndTime);
     };
 
@@ -223,24 +272,29 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
       if (currentTrack) {
         const currentClip = currentTrack.clips.find(c => c.id === clip.id);
         if (currentClip) {
-          const newEndTime = currentClip.startTime + currentClip.duration;
+          // Use trimmed duration for new end time
+          const newEndTime = currentClip.startTime + (currentClip.outPoint - currentClip.inPoint);
           const timeDiff = newEndTime - originalEndTime;
 
-          // Find clips that were connected to the original end position
-          const connectedClips = currentTrack.clips.filter(c =>
-            c.id !== clip.id && Math.abs(c.startTime - originalEndTime) < 0.01
-          );
+          // Find clips that START after the new end position (auto-snap - always connect clips)
+          const nextClips = currentTrack.clips.filter(c =>
+            c.id !== clip.id && c.startTime >= newEndTime - 0.1
+          ).sort((a, b) => a.startTime - b.startTime); // Ascending order
 
-          // Move connected clips to maintain the connection
-          if (connectedClips.length > 0 && Math.abs(timeDiff) > 0.01) {
+          // Snap to the leftmost clip after us
+          const clipToSnap = nextClips[0];
+
+          // Snap the next clip to maintain connection
+          if (clipToSnap) {
+            console.log(`[trimClipEnd] Auto-snapping next clip ${clipToSnap.id} from ${clipToSnap.startTime.toFixed(3)} to ${newEndTime.toFixed(3)}`);
             useProjectStore.setState((state) => ({
               tracks: state.tracks.map(track => {
                 if (track.id === currentTrack.id) {
                   return {
                     ...track,
                     clips: track.clips.map(c => {
-                      // Check if this clip was connected to the trimmed clip
-                      if (connectedClips.some(cc => cc.id === c.id)) {
+                      // Only move the clip immediately after us
+                      if (c.id === clipToSnap.id) {
                         return {
                           ...c,
                           startTime: newEndTime, // Snap to new end position
@@ -288,8 +342,10 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
       for (const otherClip of currentTrack.clips) {
         if (otherClip.id === clip.id) continue; // Skip self
 
-        const otherClipEnd = otherClip.startTime + otherClip.duration;
-        const thisClipEnd = newStartTime + clip.duration;
+        // Use trimmed duration for accurate snapping
+        const otherClipEnd = otherClip.startTime + (otherClip.outPoint - otherClip.inPoint);
+        const thisClipDuration = clip.outPoint - clip.inPoint;
+        const thisClipEnd = newStartTime + thisClipDuration;
 
         // Snap this clip's start to other clip's end
         const distanceToOtherEnd = Math.abs(newStartTime - otherClipEnd);
@@ -302,7 +358,7 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
         const distanceToOtherStart = Math.abs(thisClipEnd - otherClip.startTime);
         if (distanceToOtherStart < closestDistance) {
           closestDistance = distanceToOtherStart;
-          snappedTime = otherClip.startTime - clip.duration;
+          snappedTime = otherClip.startTime - thisClipDuration;
         }
       }
 
@@ -329,8 +385,8 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
         // If any clip is before 0, shift all clips right so the leftmost is at 0
         if (minStartTime < 0) {
           const shiftAmount = -minStartTime;
-          useProjectStore.setState((state) => ({
-            tracks: state.tracks.map(track => {
+          useProjectStore.setState((state) => {
+            const updatedTracks = state.tracks.map(track => {
               if (track.id === currentTrack.id) {
                 return {
                   ...track,
@@ -341,8 +397,21 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
                 };
               }
               return track;
-            }),
-          }));
+            });
+
+            // Recalculate project duration after magnetic snap
+            const clipDurations = updatedTracks.flatMap(t => t.clips.map(c => {
+              const trimmedDuration = c.outPoint - c.inPoint;
+              const endTime = c.startTime + trimmedDuration;
+              return endTime;
+            }));
+            const maxEndTime = Math.max(0, ...clipDurations);
+
+            return {
+              tracks: updatedTracks,
+              duration: maxEndTime,
+            };
+          });
         }
         // Don't shift clips left if they're already after 0 - allow positioning anywhere
       }
@@ -353,13 +422,26 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
 
       // Now commit the move with history
       const currentState = useProjectStore.getState();
+      const currentTrack = currentState.tracks.find(t =>
+        t.clips.some(c => c.id === clip.id)
+      );
       const currentClip = currentState.tracks
         .flatMap(t => t.clips)
         .find(c => c.id === clip.id);
 
       if (currentClip && currentClip.startTime !== dragStartTime.current) {
+        // Check if this is the only clip on the track
+        const isOnlyClip = currentTrack && currentTrack.clips.length === 1;
+
+        // If it's the only clip, auto-snap to 0
+        const finalStartTime = isOnlyClip ? 0 : currentClip.startTime;
+
+        if (isOnlyClip && currentClip.startTime !== 0) {
+          console.log(`[moveClip] Single clip detected - auto-snapping to 0`);
+        }
+
         // Move clip will save to history
-        moveClip(clip.id, currentClip.startTime);
+        moveClip(clip.id, finalStartTime);
       }
 
       document.removeEventListener('mousemove', handleMouseMove);
@@ -421,26 +503,26 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
         <div className="absolute inset-0 px-2 py-1 flex flex-col justify-between">
           <p className="text-xs truncate font-medium">{media.name}</p>
           <p className="text-xs text-muted-foreground">
-            {formatDuration(clip.duration)}
+            {formatDuration(trimmedDuration)}
           </p>
         </div>
 
         {/* Trim handles - more visible when hovering near edges */}
         <div
           className={cn(
-            "absolute left-0 top-0 bottom-0 w-1 transition-all",
+            "absolute left-0 top-0 bottom-0 w-1.5 transition-all",
             cursorType === 'trim-start' || trimMode === 'start'
-              ? "bg-blue-500 w-2"
-              : "bg-primary/30"
+              ? "bg-blue-500 w-3"
+              : "bg-primary/40"
           )}
           style={{ pointerEvents: 'none' }}
         />
         <div
           className={cn(
-            "absolute right-0 top-0 bottom-0 w-1 transition-all",
+            "absolute right-0 top-0 bottom-0 w-1.5 transition-all",
             cursorType === 'trim-end' || trimMode === 'end'
-              ? "bg-blue-500 w-2"
-              : "bg-primary/30"
+              ? "bg-blue-500 w-3"
+              : "bg-primary/40"
           )}
           style={{ pointerEvents: 'none' }}
         />
