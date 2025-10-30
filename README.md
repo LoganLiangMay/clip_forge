@@ -58,6 +58,7 @@ graph TB
 - ✅ **Custom Export Presets**: 1080p, 720p, 4K, and platform-specific formats
 - ✅ **Auto-save**: Automatic project saving every 2 minutes
 - ✅ **Dark Theme**: Professional dark UI optimized for video editing
+- ✨ **AI B-roll Finder** *(NEW)*: Automatically search and insert relevant stock footage using AI
 
 ## Project Structure
 
@@ -232,9 +233,66 @@ npm run dist:linux  # Linux only
 - **Ctrl/Cmd + Z**: Undo
 - **Ctrl/Cmd + Shift + Z**: Redo
 
+## 🤖 AI B-roll Finder
+
+ClipForge includes an AI-powered B-roll finder that automatically searches for and inserts relevant stock footage based on your video content.
+
+### Setup
+
+1. Click the **Settings** gear icon in the toolbar
+2. Add your API keys:
+   - **OpenAI API Key**: Get from [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+   - **SerpAPI Key**: Get from [serpapi.com/manage-api-key](https://serpapi.com/manage-api-key)
+
+### How to Use
+
+1. **Save your project** (required to download media files)
+2. Click the **AI B-roll** button (✨ sparkle icon) in the toolbar
+3. Enter your video script or description in the dialog
+4. Configure options:
+   - ✅ **Prefer video clips over images**
+   - ✅ **Auto-place clips on timeline (Track V2)**
+   - ✅ **Add fade in/out transitions**
+5. Click **Generate B-roll**
+
+The AI will:
+1. Analyze your content and extract key visual scenes
+2. Search Pexels for relevant stock footage
+3. Download media to your project folder (`ai-broll/`)
+4. Add clips to Media Library and Timeline (if auto-place enabled)
+
+### Features
+
+- **GPT-4 Turbo** content analysis for accurate scene extraction
+- **Smart media search** via SerpAPI (Pexels integration)
+- **Automatic downloads** to project folder
+- **Timeline insertion** with suggested timestamps
+- **Visual distinction**: AI clips have a purple gradient border on the timeline
+- **Fade effects**: Optional fade in/out transitions
+
+### Cost
+
+- **OpenAI**: ~$0.01-0.03 per request (GPT-4 Turbo)
+- **SerpAPI**: Free tier available (100 searches/month), then $50/month for 5000 searches
+
+### Example Usage
+
+**Input:**
+```
+A morning routine tutorial. Start with sunrise and coffee brewing,
+then show healthy breakfast preparation. Include shots of exercise
+and planning the day with a planner.
+```
+
+**AI Output:**
+- 0:05 → sunrise/morning coffee
+- 0:15 → person brewing coffee
+- 0:30 → healthy meal preparation
+- 0:45 → person exercising
+- 1:00 → planner/organization shots
+
 ## Roadmap (Phase 2)
 
-- AI-powered features
 - Advanced effects and transitions
 - Color grading tools
 - Motion tracking

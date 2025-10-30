@@ -107,6 +107,24 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
+/* AI-generated clips */
+.timeline-clip.ai-clip {
+  @apply bg-gradient-to-r from-purple-600/80 to-purple-500/80;
+  border: 2px solid rgb(168, 85, 247);
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);
+}
+
+.timeline-clip.ai-clip:hover {
+  @apply from-purple-600/90 to-purple-500/90;
+  border-color: rgb(192, 132, 252);
+}
+
+.timeline-clip.ai-clip.selected {
+  @apply from-purple-600 to-purple-500;
+  border: 2px solid rgb(192, 132, 252);
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.6);
+}
+
 /* Waveform canvas */
 .waveform-canvas {
   @apply bg-secondary/30;

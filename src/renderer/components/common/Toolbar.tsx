@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import {
   Save, FolderOpen, Film, Scissors, Undo, Redo,
-  Play, Pause, Square, Circle, Monitor, Camera, Download
+  Play, Pause, Square, Circle, Monitor, Camera, Download, Sparkles, Settings
 } from 'lucide-react';
 import { useProjectStore } from '../../store/projectStore';
 import { useUIStore } from '../../store/uiStore';
 import { useHistoryStore } from '../../store/historyStore';
 import { RecordingDialog } from './RecordingDialog';
+import { AIBrollDialog } from './AIBrollDialog';
+import { SettingsDialog } from './SettingsDialog';
 
 interface ToolbarProps {
   onExport?: () => void;
@@ -17,6 +19,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onExport }) => {
   const { isPlaying, togglePlayback } = useUIStore();
   const { canUndo, canRedo, undo, redo } = useHistoryStore();
   const [showRecordingDialog, setShowRecordingDialog] = useState(false);
+  const [showAIBrollDialog, setShowAIBrollDialog] = useState(false);
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
 
   const handleSave = async () => {
     const state = useProjectStore.getState();
@@ -76,6 +80,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onExport }) => {
       <RecordingDialog
         isOpen={showRecordingDialog}
         onClose={() => setShowRecordingDialog(false)}
+      />
+      <AIBrollDialog
+        isOpen={showAIBrollDialog}
+        onClose={() => setShowAIBrollDialog(false)}
+      />
+      <SettingsDialog
+        isOpen={showSettingsDialog}
+        onClose={() => setShowSettingsDialog(false)}
       />
       <div className="h-12 bg-background border-b border-border flex items-center px-4 gap-2">
       {/* File Operations */}
@@ -160,6 +172,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onExport }) => {
         </button>
       </div>
 
+      {/* AI Operations */}
+      <div className="flex items-center gap-1 pr-2 border-r border-border">
+        <button
+          onClick={() => setShowAIBrollDialog(true)}
+          className="p-2 hover:bg-background rounded transition-colors text-purple-500"
+          title="AI B-roll Finder"
+        >
+          <Sparkles className="w-4 h-4" />
+        </button>
+      </div>
+
       {/* Playback Controls */}
       <div className="flex items-center gap-1">
         <button
@@ -176,6 +199,15 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onExport }) => {
         {useProjectStore.getState().projectName}
         {isDirty && ' *'}
       </div>
+
+      {/* Settings */}
+      <button
+        onClick={() => setShowSettingsDialog(true)}
+        className="p-2 hover:bg-background rounded transition-colors"
+        title="Settings"
+      >
+        <Settings className="w-4 h-4" />
+      </button>
     </div>
     </>
   );

@@ -8,8 +8,11 @@ import {
   closeCameraBubble,
   updateCameraBubblePosition,
 } from '../windows/overlayWindows';
+import { setupAIBrollHandlers } from './ai-broll-handlers';
 
 export function setupIpcHandlers() {
+  // Setup AI B-roll handlers
+  setupAIBrollHandlers();
   // Overlay window handlers
   ipcMain.handle('overlay:create-camera-bubble', async (event, position) => {
     try {
@@ -178,6 +181,37 @@ export function setupIpcHandlers() {
       await fs.mkdir(dirPath, { recursive: true });
       return { success: true };
     } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  // Media library handler - send recorded file to main window
+  ipcMain.handle('media:add-to-library', async (event, mediaFile) => {
+    try {
+      console.log('[IPC] Adding media file to library:', mediaFile.name);
+
+      // Get all windows
+      const allWindows = BrowserWindow.getAllWindows();
+
+      // Find the main window (not overlay windows)
+      // Main window is typically the first window or the one with title "ClipForge"
+      const mainWindow = allWindows.find(win => {
+        const url = win.webContents.getURL();
+        // Main window doesn't have hash routes like /camera-bubble or /recording-controls
+        return !url.includes('camera-bubble') && !url.includes('recording-controls');
+      });
+
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        console.log('[IPC] Sending media file to main window');
+        // Send the media file data to the main window
+        mainWindow.webContents.send('media:add-file', mediaFile);
+        return { success: true };
+      } else {
+        console.error('[IPC] Main window not found');
+        return { success: false, error: 'Main window not found' };
+      }
+    } catch (error) {
+      console.error('[IPC] Error adding media to library:', error);
       return { success: false, error: (error as Error).message };
     }
   });

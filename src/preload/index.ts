@@ -61,6 +61,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ensureDir: (dirPath: string) =>
     ipcRenderer.invoke('fs:ensure-dir', dirPath),
 
+  // Media Library API
+  addMediaToLibrary: (mediaFile: any) =>
+    ipcRenderer.invoke('media:add-to-library', mediaFile),
+  onMediaFileAdded: (callback: (mediaFile: any) => void) => {
+    ipcRenderer.on('media:add-file', (event, mediaFile) => callback(mediaFile));
+  },
+
+  // AI B-roll API
+  getSettings: () =>
+    ipcRenderer.invoke('ai:get-settings'),
+  saveSettings: (settings: any) =>
+    ipcRenderer.invoke('ai:save-settings', settings),
+  aiAnalyzeContent: (script: string) =>
+    ipcRenderer.invoke('ai:analyze-content', script),
+  aiSearchMedia: (scenes: any[]) =>
+    ipcRenderer.invoke('ai:search-media', scenes),
+  aiDownloadMedia: (mediaResults: any[], projectPath: string) =>
+    ipcRenderer.invoke('ai:download-media', mediaResults, projectPath),
+  aiInsertToTimeline: (downloadedFiles: any[], scenes: any[]) =>
+    ipcRenderer.invoke('ai:insert-timeline', downloadedFiles, scenes),
+
   // Menu Events
   onMenuAction: (callback: (action: string) => void) => {
     const events = [
@@ -144,6 +165,14 @@ declare global {
       readFile: (filePath: string) => Promise<any>;
       writeFile: (filePath: string, data: any) => Promise<any>;
       ensureDir: (dirPath: string) => Promise<any>;
+      addMediaToLibrary: (mediaFile: any) => Promise<any>;
+      onMediaFileAdded: (callback: (mediaFile: any) => void) => void;
+      getSettings: () => Promise<any>;
+      saveSettings: (settings: any) => Promise<any>;
+      aiAnalyzeContent: (script: string) => Promise<any>;
+      aiSearchMedia: (scenes: any[]) => Promise<any>;
+      aiDownloadMedia: (mediaResults: any[], projectPath: string) => Promise<any>;
+      aiInsertToTimeline: (downloadedFiles: any[], scenes: any[]) => Promise<any>;
       onMenuAction: (callback: (action: string) => void) => (() => void);
       startAutoSave: () => void;
       stopAutoSave: () => void;

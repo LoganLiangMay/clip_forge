@@ -352,8 +352,9 @@ export const useMediaRecorder = () => {
             actualDuration: actualDuration
           });
 
-          // Add to media library with actual duration
-          useProjectStore.getState().addMediaFile({
+          // Send to main window to add to media library
+          // (overlay windows have separate store context)
+          const mediaFile = {
             id: Date.now().toString(),
             path: savePath,
             name: actualFileName,
@@ -365,10 +366,11 @@ export const useMediaRecorder = () => {
                 format_name: 'webm',
               },
             },
-          });
+          };
 
-          console.log('Recording saved successfully:', savePath, 'Duration:', actualDuration, 'seconds');
-          console.log('[useMediaRecorder] Added to Media Library:', actualFileName);
+          console.log('[useMediaRecorder] Sending media file to main window:', mediaFile.name);
+          await window.electronAPI.addMediaToLibrary(mediaFile);
+          console.log('[useMediaRecorder] Media file sent to main window successfully');
 
           // Close overlay windows after successful save
           if (window.electronAPI && window.electronAPI.closeAllOverlays) {

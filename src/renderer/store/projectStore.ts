@@ -63,6 +63,7 @@ interface ProjectState {
   removeEmptyTracks: () => void;
   toggleTrackMute: (trackId: string) => void;
   toggleTrackLock: (trackId: string) => void;
+  addAIClipsToTimeline: (insertions: any[]) => void;
 }
 
 export const useProjectStore = create<ProjectState>((set) => ({
@@ -662,5 +663,92 @@ export const useProjectStore = create<ProjectState>((set) => ({
       ),
       isDirty: true,
     }));
+  },
+
+  addAIClipsToTimeline: (insertions: any[]) => {
+    // Save state before action
+    const historyStore = useHistoryStore.getState();
+    historyStore.saveState();
+
+    set((state) => {
+      let updatedTracks = [...state.tracks];
+
+      // Find or create V2 track (second video track)
+      const videoTracks = updatedTracks.filter(t => t.type === 'video');
+      let v2Track = videoTracks.find(t => t.name === 'Video 2');
+
+      if (!v2Track) {
+        // Create V2 track
+        const trackId = `v${Date.now()}`;
+        v2Track = {
+          id: trackId,
+          name: 'Video 2',
+          type: 'video',
+          muted: false,
+          locked: false,
+          clips: [],
+        };
+
+        // Insert V2 track after Video 1
+        const video1Index = updatedTracks.findIndex(t => t.name === 'Video 1');
+        if (video1Index >= 0) {
+          updatedTracks = [
+            ...updatedTracks.slice(0, video1Index + 1),
+            v2Track,
+            ...updatedTracks.slice(video1Index + 1),
+          ];
+        } else {
+          updatedTracks = [v2Track, ...updatedTracks];
+        }
+      }
+
+      // Add AI clips to V2 track
+      const newClips: TimelineClip[] = insertions.map((insertion, index) => {
+        // Find the media file for this insertion
+        const mediaFile = state.mediaFiles.find(m => m.path === insertion.filePath);
+
+        if (!mediaFile) {
+          console.warn(`[addAIClipsToTimeline] Media file not found: ${insertion.filePath}`);
+          return null;
+        }
+
+        return {
+          id: `ai-${Date.now()}-${index}`,
+          mediaId: mediaFile.id,
+          trackId: v2Track!.id,
+          startTime: insertion.startTime,
+          duration: insertion.duration,
+          inPoint: 0,
+          outPoint: insertion.duration,
+          volume: 1,
+          effects: insertion.effects || [],
+        };
+      }).filter((clip): clip is TimelineClip => clip !== null);
+
+      // Update the V2 track with new clips
+      updatedTracks = updatedTracks.map(track => {
+        if (track.id === v2Track!.id) {
+          return {
+            ...track,
+            clips: [...track.clips, ...newClips].sort((a, b) => a.startTime - b.startTime),
+          };
+        }
+        return track;
+      });
+
+      // Update project duration
+      const maxEndTime = Math.max(
+        0,
+        ...updatedTracks.flatMap(t => t.clips.map(c => c.startTime + (c.outPoint - c.inPoint)))
+      );
+
+      console.log(`[addAIClipsToTimeline] Added ${newClips.length} AI clips to V2 track`);
+
+      return {
+        tracks: updatedTracks,
+        duration: Math.max(state.duration, maxEndTime),
+        isDirty: true,
+      };
+    });
   },
 }));

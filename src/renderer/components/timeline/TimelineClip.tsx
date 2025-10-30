@@ -466,6 +466,9 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
     }
   };
 
+  // Check if this is an AI-generated clip
+  const isAIClip = clip.id.startsWith('ai-');
+
   return (
     <div
       ref={clipRef}
@@ -473,7 +476,8 @@ export const TimelineClip: React.FC<TimelineClipProps> = ({
         "timeline-clip",
         isSelected && "selected",
         isDragging && "dragging",
-        trimMode !== 'none' && "trimming"
+        trimMode !== 'none' && "trimming",
+        isAIClip && "ai-clip"
       )}
       style={{
         left: `${clip.startTime * pixelsPerSecond}px`,
