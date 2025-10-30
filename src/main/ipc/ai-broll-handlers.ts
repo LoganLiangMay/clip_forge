@@ -1,14 +1,22 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { AIBrollService } from '../services/ai-broll.service';
 
-// Use require for electron-store to avoid TypeScript issues
-const Store = require('electron-store');
-const store = new Store();
+// Lazy load electron-store (ES Module)
+let storeInstance: any = null;
+
+async function getStore() {
+  if (!storeInstance) {
+    const Store = (await import('electron-store')).default;
+    storeInstance = new Store();
+  }
+  return storeInstance;
+}
 
 export function setupAIBrollHandlers() {
   // Settings handlers
   ipcMain.handle('ai:get-settings', async () => {
     try {
+      const store = await getStore();
       return {
         success: true,
         data: {
@@ -23,6 +31,7 @@ export function setupAIBrollHandlers() {
 
   ipcMain.handle('ai:save-settings', async (event, settings) => {
     try {
+      const store = await getStore();
       if (settings.openai_api_key) {
         store.set('openai_api_key', settings.openai_api_key);
       }
@@ -38,6 +47,7 @@ export function setupAIBrollHandlers() {
   // AI B-roll generation handlers
   ipcMain.handle('ai:analyze-content', async (event, script: string) => {
     try {
+      const store = await getStore();
       const openaiKey = store.get('openai_api_key') as string;
       const serpApiKey = store.get('serpapi_key') as string;
 
@@ -60,6 +70,7 @@ export function setupAIBrollHandlers() {
 
   ipcMain.handle('ai:search-media', async (event, scenes: any[]) => {
     try {
+      const store = await getStore();
       const openaiKey = store.get('openai_api_key') as string;
       const serpApiKey = store.get('serpapi_key') as string;
 
@@ -82,6 +93,7 @@ export function setupAIBrollHandlers() {
 
   ipcMain.handle('ai:download-media', async (event, mediaResults: any[], projectPath: string) => {
     try {
+      const store = await getStore();
       const openaiKey = store.get('openai_api_key') as string;
       const serpApiKey = store.get('serpapi_key') as string;
       const mainWindow = BrowserWindow.getFocusedWindow();
@@ -112,6 +124,7 @@ export function setupAIBrollHandlers() {
 
   ipcMain.handle('ai:insert-timeline', async (event, downloadedFiles: any[], scenes: any[]) => {
     try {
+      const store = await getStore();
       const openaiKey = store.get('openai_api_key') as string;
       const serpApiKey = store.get('serpapi_key') as string;
 
