@@ -2,7 +2,6 @@ import axios from 'axios';
 import { OpenAI } from 'openai';
 import fs from 'fs/promises';
 import path from 'path';
-import { download } from 'electron-dl';
 import type { BrowserWindow } from 'electron';
 
 interface Scene {
@@ -190,6 +189,9 @@ Extract 5-10 scenes maximum. Focus on visual, searchable topics like "coffee bre
     projectPath: string,
     window: BrowserWindow
   ): Promise<DownloadedFile[]> {
+    // Dynamically import electron-dl (ES Module)
+    const { download } = await import('electron-dl');
+
     const downloadedFiles: DownloadedFile[] = [];
     const mediaFolder = path.join(projectPath, 'ai-broll');
 

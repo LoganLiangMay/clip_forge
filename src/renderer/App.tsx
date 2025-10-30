@@ -22,7 +22,7 @@ function App() {
   if (hash === '/recording-controls') {
     return <RecordingControlsOverlay />;
   }
-  const { loadProject, saveProject, createNewProject } = useProjectStore();
+  const { loadProject, saveProject, createNewProject, addMediaFile } = useProjectStore();
   const { showSidePanel, showPropertiesPanel } = useUIStore();
   const [showExportDialog, setShowExportDialog] = useState(false);
 
@@ -66,13 +66,19 @@ function App() {
       handleAutoSave();
     });
 
+    // Listen for media files from overlay windows (recordings)
+    window.electronAPI.onMediaFileAdded((mediaFile) => {
+      console.log('[App] Received media file from overlay:', mediaFile.name);
+      addMediaFile(mediaFile);
+    });
+
     return () => {
       if (cleanupMenuActions) {
         cleanupMenuActions();
       }
       window.electronAPI.stopAutoSave();
     };
-  }, [createNewProject]);
+  }, [createNewProject, addMediaFile]);
 
   const handleOpenProject = async () => {
     const result = await window.electronAPI.openFile();
