@@ -116,8 +116,8 @@ export const AIBrollDialog: React.FC<AIBrollDialogProps> = ({ isOpen, onClose })
 
       setProgress(`Found ${mediaResults.length} media files. Downloading...`);
 
-      // Step 5: Download media to Downloads folder (simple default location)
-      const downloadResult = await window.electronAPI.aiDownloadMedia(mediaResults, null);
+      // Step 5: Download media to Downloads folder (use current directory as default)
+      const downloadResult = await window.electronAPI.aiDownloadMedia(mediaResults, '');
 
       if (!downloadResult.success) {
         throw new Error(downloadResult.error || 'Failed to download media');
