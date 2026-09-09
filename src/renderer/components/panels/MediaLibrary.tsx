@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Folder, Film, Music, Image, Search, Plus, Grid, List, ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
+import { Folder, Film, Music, Image, Search, Plus, Grid, List, ChevronDown, ChevronRight, Sparkles, X } from 'lucide-react';
 import { useProjectStore } from '../../store/projectStore';
 import { cn } from '../../utils/cn';
 
